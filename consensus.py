@@ -8,9 +8,9 @@ import numpy as np
 ## a = consensus.BamFile('CF_TNFC005IS_t2Q15.s1.bam.sorted')
 ## 
 ## for i in a.get_contigs():
-## print i,a.get_contig_by_label(i).reference_free_consensus()
-## print a.get_contig_by_label(i).depth_of_coverage()  #(mean,median)
-## print a.get_contig_by_label(i).breadth_of_coverage()
+## 	print i,a.get_contig_by_label(i).reference_free_consensus()
+## 	print a.get_contig_by_label(i).depth_of_coverage()  #(mean,median)
+## 	print a.get_contig_by_label(i).breadth_of_coverage()
 
 
 class BamFile:
@@ -54,7 +54,7 @@ class BamContig:
 		self.bam_handle = bamHandle 
  
 
-	def reference_free_consensus(self):
+	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get)):
 
 		consensus_positions = {}
 		for pileupcolumn in self.bam_handle.pileup(self.name,stepper='nofilter'):
@@ -66,7 +66,7 @@ class BamContig:
 					if base in ['A','T','C','G']: consensus_positions[pileupcolumn.pos][base]+=1
 					else: consensus_positions[pileupcolumn.pos]['N']+=1
 
-			consensus_positions[pileupcolumn.pos] = majority_consensus(consensus_positions[pileupcolumn.pos])
+			consensus_positions[pileupcolumn.pos] = consensus_rule(consensus_positions[pileupcolumn.pos])
 
 
 		self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else 'N') for position in range(0,self.length)])
@@ -91,7 +91,3 @@ class BamContig:
 
 		
 		return float(ptl)/self.length
-
-	
-def majority_consensus(arr):
-	return max(arr, key=arr.get)
