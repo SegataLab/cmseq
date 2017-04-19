@@ -19,6 +19,7 @@ To create a new BamContig from an unsorted BAM file:
 collection = consensus.BamFile(BAM_FILE_PATH,sort=True,index=True)
 ```
 
+
 ### class BamContig ###
 
 Represents a contig to which some reads map against
