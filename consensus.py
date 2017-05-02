@@ -53,7 +53,8 @@ class BamContig:
 		self.name = contigName
 		self.length = contigLength
 		self.bam_handle = bamHandle 
-		self.stepper = stepper
+		self.stepper=stepper
+
 
 	def set_stepper(self,ns):
 		if ns in ['all','nofilter']: self.stepper = ns
@@ -66,7 +67,6 @@ class BamContig:
 			for pileupread in pileupcolumn.pileups:
 				if not pileupread.is_del and not pileupread.is_refskip:
 					base = pileupread.alignment.query_sequence[pileupread.query_position].upper()
-							
 					if base in ['A','T','C','G']: consensus_positions[pileupcolumn.pos][base]+=1
 					else: consensus_positions[pileupcolumn.pos]['N']+=1
 
@@ -116,7 +116,27 @@ if __name__ == "__main__":
 				print cn.name+'\t'+str(cn.breadth_of_coverage())+'\t'+str(cn.depth_of_coverage()[0])+'\t'+str(cn.depth_of_coverage()[1])
 
 
+	def consensus_from_file(args):
+		from Bio import SeqIO
+		from Bio.Seq import Seq
+		from Bio.SeqRecord import SeqRecord
+		from Bio.Alphabet import IUPAC
 
+		si = True if args.sortindex else False
+		mode = 'all' if args.f else 'nofilter'
+
+		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode)
+
+		if args.contig is None:
+			lst=[]
+			for i in bf.get_contigs_obj():
+				lst.append(SeqRecord(Seq(i.reference_free_consensus(), IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
+			SeqIO.write(lst,sys.stdin,'fasta')
+		else:
+			cn=bf.get_contig_by_label(args.contig)
+			if cn is not None:
+				print '>'+cn.name+'_consensus'
+				print str(cn.reference_free_consensus())
 
 	import argparse
 	parser = argparse.ArgumentParser()
@@ -127,6 +147,14 @@ if __name__ == "__main__":
 	parser_breadth.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_breadth.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	parser_breadth.set_defaults(func=bd_from_file)
-		
+
+
+	parser_breadth = subparsers.add_parser('consensus',description="outputs the consensus in FASTA format")
+	parser_breadth.add_argument('BAMFILE', help='The file on which to operate, if - stdin is considered')
+	parser_breadth.add_argument('-c','--contig', help='Get the consensus of a specific contig',default=None)
+	parser_breadth.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
+	parser_breadth.add_argument('--sortindex', help='Sort and index the file',action='store_true')
+	parser_breadth.set_defaults(func=consensus_from_file)
+
 	args = parser.parse_args()
 	args.func(args)
