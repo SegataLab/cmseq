@@ -12,7 +12,7 @@
 * matplotlib
 * seaborn
 
-CMSeq can be used (as python module)[README_class.md] as well
+**Note: CMSeq can be used [as python module](README_class.md) as well**
 
 ## Usage as Python Program ##
 
