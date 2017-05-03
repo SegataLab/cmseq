@@ -14,9 +14,7 @@ Requires samtools (> 1.x), numpy, pysam, matplotlib and seaborn
 usage: cmseq.py [-h] {bd,consensus,coverageplot} ...
 ```
 
-### bd (Breadth-Depth) ###
-
-
+### Subcommand bd (Breadth-Depth) ###
 ```
 #!python
 usage: cmseq.py bd [-h] [-c CONTIG] [-f] [--sortindex] BAMFILE
@@ -36,8 +34,7 @@ optional arguments:
   --sortindex           Sort and index the file
 ```
 
-### consensus ###
-
+### Subcommand: consensus ###
 ```
 usage: cmseq.py consensus [-h] [-c CONTIG] [-f] [--sortindex] BAMFILE
 
@@ -55,11 +52,9 @@ optional arguments:
                         unset ALL reads are considered (bedtools genomecov
                         style). Default: unset
   --sortindex           Sort and index the file
-
 ```
 
-### Coverage Plot ###
-
+### Subcommand: coverageplot ###
 ```
 usage: cmseq.py coverageplot [-h] [-c CONTIG] [-f] [--smooth SMOOTH]
                              [--l_avoid] [--l_color L_COLOR]
