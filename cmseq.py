@@ -208,15 +208,15 @@ if __name__ == "__main__":
 	parser_coverageplot.add_argument('BAMFILE', help='The file on which to operate')
 	parser_coverageplot.add_argument('-c','--contig', help='Get the breadth of a specific contig',default=None)
 	parser_coverageplot.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
+	parser_coverageplot.add_argument('--flavour', choices=['polar','linear'], help='choose from linear or polar plot', default='polar')
+	parser_coverageplot.add_argument('--sortindex', help='Sort and index the file',action='store_true')
+
 	parser_coverageplot.add_argument('--smooth', help='Smooth factor. Default: 0 (no smooth)',default=0, type=int)
 	parser_coverageplot.add_argument('--l_avoid', help='Suppresses line-plot',action='store_true')
-	
 	parser_coverageplot.add_argument('--l_color', help='Line color for matplotlib, in HTML format (#XXXXXX)',default='#000000')
 	parser_coverageplot.add_argument('--s_color', help='Scatter color in HTML format (#XXXXXX)',default='#000000')
-
-	parser_coverageplot.add_argument('--flavour', choices=['polar','linear'], help='choose from linear or polar plot', default='polar')
 	parser_coverageplot.add_argument('--s_avoid', help='Suppresses scatter-plot',action='store_true')
-	parser_coverageplot.add_argument('--sortindex', help='Sort and index the file',action='store_true')
+	
 	parser_coverageplot.set_defaults(func=plot_coverage_from_file)
 
 
