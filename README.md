@@ -1,13 +1,96 @@
 # CMSeq #
 
-
-## Consensus ##
-
+ 
 * Provides interface for .bam files
 * reference free consensus
+* Breadth and Depth of coverage
+* Coverage plots
 
-Requires samtools (> 1.x), numpy, pysam
+Requires samtools (> 1.x), numpy, pysam, matplotlib and seaborn
 
+## Usage as Python Program ##
+```
+#!python
+usage: cmseq.py [-h] {bd,consensus,coverageplot} ...
+```
+
+### bd (Breadth-Depth) ###
+
+
+```
+#!python
+usage: cmseq.py bd [-h] [-c CONTIG] [-f] [--sortindex] BAMFILE
+
+calculate the Breadth and Depth of coverage of BAMFILE
+
+positional arguments:
+  BAMFILE               The file on which to operate
+
+optional arguments:
+  -c CONTIG, --contig CONTIG
+                        Get the breadth and depth of a specific contig
+  -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
+                        fail (FQCFAIL) and duplicate (FDUP) are excluded. If
+                        unset ALL reads are considered (bedtools genomecov
+                        style). Default: unset
+  --sortindex           Sort and index the file
+```
+
+### consensus ###
+
+```
+usage: cmseq.py consensus [-h] [-c CONTIG] [-f] [--sortindex] BAMFILE
+
+outputs the consensus in FASTA format
+
+positional arguments:
+  BAMFILE               The file on which to operate
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c CONTIG, --contig CONTIG
+                        Get the consensus of a specific contig
+  -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
+                        fail (FQCFAIL) and duplicate (FDUP) are excluded. If
+                        unset ALL reads are considered (bedtools genomecov
+                        style). Default: unset
+  --sortindex           Sort and index the file
+
+```
+
+### Coverage Plot ###
+
+```
+usage: cmseq.py coverageplot [-h] [-c CONTIG] [-f] [--smooth SMOOTH]
+                             [--l_avoid] [--l_color L_COLOR]
+                             [--s_color S_COLOR] [--flavour FLAVOUR]
+                             [--s_avoid] [--sortindex]
+                             BAMFILE
+
+Plot the coverage of a contig
+
+positional arguments:
+  BAMFILE               The file on which to operate
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c CONTIG, --contig CONTIG
+                        Get the breadth of a specific contig
+  -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
+                        fail (FQCFAIL) and duplicate (FDUP) are excluded. If
+                        unset ALL reads are considered (bedtools genomecov
+                        style). Default: unset
+  --smooth SMOOTH       Smooth factor. Default: 0 (no smooth)
+  --l_avoid             Suppresses line-plot
+  --l_color L_COLOR     Line color
+  --s_color S_COLOR     Scatter color
+  --flavour FLAVOUR
+  --s_avoid             Suppresses scatter-plot
+  --sortindex           Sort and index the file
+
+```
+
+## Usage as Python Module ##
 
 ### class BamFile ###
 
@@ -16,9 +99,21 @@ Represents a collection of contig/reference of a bam file
 To create a new BamContig from an unsorted BAM file:
 ```
 #!python
-collection = consensus.BamFile(BAM_FILE_PATH,sort=True,index=True)
+collection = cmseq.BamFile(BAM_FILE_PATH,sort=True,index=True)
 ```
 
+To start from a pre-sorted and indexed bam file:
+```
+#!python
+collection = cmseq.BamFile(BAM_FILE_PATH)
+```
+
+To set the pysam stepper to a custom value (e.g. 'all', that avoids secondary alignments or 'nofilter', that includes secondary alignments):
+```
+#!python
+#Impose a custom stepper for all the contigs of the BAMFILE
+collection = cmseq.BamFile(BAM_FILE_PATH,stepper='all')
+```
 
 ### class BamContig ###
 
@@ -29,7 +124,7 @@ To create a new BamContig:
 
 ```
 #!python
-contig = consensus.BamContig(bamHandle,contigName,contigLength)
+contig = cmseq.BamContig(bamHandle,contigName,contigLength)
 ```
 
 * bamHandle: a pysam AlignmentFile instance, pointing to the original bam file (sorted and indexed)
@@ -56,11 +151,30 @@ print a.get_contig_by_label("CONTIG_NAME").reference_free_consensus(consensus_ru
 
 **Depth of Coverage**
 
-contig.depth_of_coverage(): returns a tuple, with the (mean_coverage,median_coverage) values, calculated over the positions that have a coverage of at least 1 (at least one mapping read on that position)
+BamContig.depth_of_coverage(): returns a tuple, with the (mean_coverage,median_coverage) values, calculated over the positions that have a coverage of at least 1 (at least one mapping read on that position)
 
 **Breadth of Coverage**
 
-contg.breadth_of_coverage: returns a float, with the percentage of the total reference length covered by at least one read
+BamContig.breadth_of_coverage: returns a float, with the percentage of the total reference length covered by at least one read
+
+**plot_coverage**
+BamContig.plot_coverage() produces a PDF file with a coverage plot. 
+
+```
+#!python
+BamContig.plot_coverage(flavour='polar',path='./out.pdf',smooth=0,l_avoid=False,s_avoid=False,l_color='#000000',s_color='#000000')
+# flavour {'polar','linear'}: changes from polar to linear coverage plot
+# path: the path of the PDF file
+# smooth: convolution window size for smoothing
+# l_avoid: do not plot line
+# l_color: line_color
+# s_avoid: scatter color
+# s_color: scatter color
+```
+
+**set_stepper**
+
+BamContig.set_stepper({'all','nofilter'}): resets the pysam stepper for the contig. By default the stepper is set to 'nofilter' (bedtools style).
 
 ### Examples ###
 
@@ -68,8 +182,8 @@ Create a new instance of a BamFile. An unsorted, unindexed bam file can be provi
 
 ```
 #!python
-import consensus
-collection = consensus.BamFile("CONTIG_NAME",sort=True,index=True)
+import cmseq
+collection = cmseq.BamFile("CONTIG_NAME",sort=True,index=True)
 ```
 
 Iterate over each contig represented in the BAM/SAM file:
@@ -93,10 +207,10 @@ Do the same as before, without using the BamFile class, but with pysam only. The
 
 ```
 #!python
-import pysam,consensus
+import pysam,cmseq
 bamHandle = pysam.AlignmentFile(BAM_PATH, "rb")
 lengths = dict((r,l) for r,l in zip(bamHandle.references,bamHandle.lengths))
-contig = consensus.BamContig(bamHandle,TARGET_CONTIG,lengths[TARGET_CONTIG])
+contig = cmseq.BamContig(bamHandle,TARGET_CONTIG,lengths[TARGET_CONTIG])
 
 print contig.reference_free_consensus(consensus_rule=lambda array: '+' if sum(array.values()) >= 2 else '-')
 
