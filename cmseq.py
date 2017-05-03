@@ -182,7 +182,7 @@ if __name__ == "__main__":
 				l = [cn]
 
 		for i in l:
-			i.plot_coverage(path='./'+i.name+'.'+args.ext,smooth=args.smooth,l_avoid=args.l_avoid,s_avoid=args.s_avoid,l_color=args.l_color,s_color=args.s_color,flavour=args.flavour)
+			i.plot_coverage(path='./'+i.name+'.'+args.format,smooth=args.smooth,l_avoid=args.l_avoid,s_avoid=args.s_avoid,l_color=args.l_color,s_color=args.s_color,flavour=args.flavour)
 
 
 	import argparse
