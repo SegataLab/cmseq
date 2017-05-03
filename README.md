@@ -75,13 +75,14 @@ optional arguments:
                         fail (FQCFAIL) and duplicate (FDUP) are excluded. If
                         unset ALL reads are considered (bedtools genomecov
                         style). Default: unset
+  --flavour {polar,linear}
+                        choose from linear or polar plot
+  --sortindex           Sort and index the file
   --smooth SMOOTH       Smooth factor. Default: 0 (no smooth)
   --l_avoid             Suppresses line-plot
-  --l_color L_COLOR     Line color
-  --s_color S_COLOR     Scatter color
-  --flavour FLAVOUR
+  --l_color L_COLOR     Line color for matplotlib, in HTML format (#XXXXXX)
+  --s_color S_COLOR     Scatter color in HTML format (#XXXXXX)
   --s_avoid             Suppresses scatter-plot
-  --sortindex           Sort and index the file
 
 ```
 
@@ -158,14 +159,15 @@ BamContig.plot_coverage() produces a PDF file with a coverage plot.
 ```
 #!python
 BamContig.plot_coverage(flavour='polar',path='./out.pdf',smooth=0,l_avoid=False,s_avoid=False,l_color='#000000',s_color='#000000')
-# flavour {'polar','linear'}: changes from polar to linear coverage plot
-# path: the path of the PDF file
-# smooth: convolution window size for smoothing
-# l_avoid: do not plot line
-# l_color: line_color
-# s_avoid: scatter color
-# s_color: scatter color
 ```
+
+**flavour {'polar','linear'}**: changes from polar to linear coverage plot
+**path**: the path of the output image file
+**smooth**: convolution window size for smoothing (default 0 = no-smoothing)
+**l_avoid**: do not plot line
+**s_avoid**: do not plot scatter points
+**l_color**: line_color (in HTML format, string)
+**s_color**: scatter color (in HTML format, string)
 
 **set_stepper**
 
