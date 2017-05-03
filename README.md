@@ -147,14 +147,14 @@ print a.get_contig_by_label("CONTIG_NAME").reference_free_consensus(consensus_ru
 
 **Depth of Coverage**
 
-BamContig.depth_of_coverage(): returns a tuple, with the (mean_coverage,median_coverage) values, calculated over the positions that have a coverage of at least 1 (at least one mapping read on that position)
+BamContig.**depth_of_coverage()**: returns a tuple, with the (mean_coverage,median_coverage) values, calculated over the positions that have a coverage of at least 1 (at least one mapping read on that position)
 
 **Breadth of Coverage**
 
-BamContig.breadth_of_coverage: returns a float, with the percentage of the total reference length covered by at least one read
+BamContig.**breadth_of_coverage**: returns a float, with the percentage of the total reference length covered by at least one read
 
-**plot_coverage**
-BamContig.plot_coverage() produces a PDF file with a coverage plot. 
+**Coverage Plot**
+BamContig.**plot_coverage()** produces a PDF file with a coverage plot. 
 
 ```
 #!python
@@ -169,9 +169,9 @@ BamContig.plot_coverage(flavour='polar',path='./out.pdf',smooth=0,l_avoid=False,
 **l_color**: line_color (in HTML format, string)
 **s_color**: scatter color (in HTML format, string)
 
-**set_stepper**
+**Set the Pysam stepper**
 
-BamContig.set_stepper({'all','nofilter'}): resets the pysam stepper for the contig. By default the stepper is set to 'nofilter' (bedtools style).
+BamContig.**set_stepper({'all','nofilter'})**: resets the pysam stepper for the contig. By default the stepper is set to 'nofilter' (bedtools style).
 
 ### Examples ###
 
@@ -192,6 +192,18 @@ for i in collection.get_contigs():
  	print collection.get_contig_by_label(i).depth_of_coverage()  #(mean,median)
  	print collection.get_contig_by_label(i).breadth_of_coverage()
 ```
+Select a custom contig and get its consensus sequence by majoriy rule:
+```
+#!python
+print collection.get_contig_by_label("CONTIG_NAME").reference_free_consensus()
+```
+
+Select a custom contig and plot its coverage
+```
+#!python
+collection.get_contig_by_label("CONTIG_NAME").plot_coverage('out.pdf')
+```
+
 
 Select a custom contig and get a custom consensus sequence, with "+" where coverage is higher or equal 2, - otherwise:
 
