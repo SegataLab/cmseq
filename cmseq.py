@@ -182,7 +182,7 @@ if __name__ == "__main__":
 				l = [cn]
 
 		for i in l:
-			i.plot_coverage(path='./'+i.name+'.pdf',smooth=args.smooth,l_avoid=args.l_avoid,s_avoid=args.s_avoid,l_color=args.l_color,s_color=args.s_color,flavour=args.flavour)
+			i.plot_coverage(path='./'+i.name+'.'+args.ext,smooth=args.smooth,l_avoid=args.l_avoid,s_avoid=args.s_avoid,l_color=args.l_color,s_color=args.s_color,flavour=args.flavour)
 
 
 	import argparse
@@ -206,11 +206,13 @@ if __name__ == "__main__":
 
 	parser_coverageplot = subparsers.add_parser('coverageplot',description="Plot the coverage of a contig")
 	parser_coverageplot.add_argument('BAMFILE', help='The file on which to operate')
+
+	
 	parser_coverageplot.add_argument('-c','--contig', help='Get the breadth of a specific contig',default=None)
 	parser_coverageplot.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_coverageplot.add_argument('--flavour', choices=['polar','linear'], help='choose from linear or polar plot', default='polar')
 	parser_coverageplot.add_argument('--sortindex', help='Sort and index the file',action='store_true')
-
+	parser_coverageplot.add_argument('--format',help='Output format',choices=['svg','pdf','svg'],default='png')
 	parser_coverageplot.add_argument('--smooth', help='Smooth factor. Default: 0 (no smooth)',default=0, type=int)
 	parser_coverageplot.add_argument('--l_avoid', help='Suppresses line-plot',action='store_true')
 	parser_coverageplot.add_argument('--l_color', help='Line color for matplotlib, in HTML format (#XXXXXX)',default='#000000')
