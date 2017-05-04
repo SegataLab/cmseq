@@ -93,14 +93,14 @@ class BamContig:
 		import numpy as np
 		import seaborn as sns
 		
- 		iret={}
+		iret={}
 		for column in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			iret[column.pos] = column.n
 
 		for i in range(0,self.length):
 			if i not in iret: iret[i] = 0
 
- 		
+		
 		if smooth == 0:
 			y_smooth = iret.values()
 		else: 
@@ -124,6 +124,51 @@ class BamContig:
 		plt.savefig(path)
 		plt.clf()
 		plt.close()
+		
+#------------------------------------------------------------------------------	
+	def get_base_stats(self, min_read_depth=1, min_base_quality=20, error_rate=0.01):
+		'''
+		get base frequencies and quality stats,
+		to use in get_all_base_values() and other functions
+		'''
+		from scipy import stats
+		from collections import defaultdict
+		base_stats = defaultdict(dict)
+		ATCG=('A','T','C','G')
+		for base_pileup in self.bam_handle.pileup(self.name,stepper='nofilter'):
+			base_freq = {'A':0,'T':0,'C':0,'G':0,'N':0}
+			for matched_read in base_pileup.pileups:
+				if not matched_read.is_del and not matched_read.is_refskip:
+					b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
+					q = matched_read.alignment.query_qualities[matched_read.query_position]
+					# if b=='N': print(matched_read.alignment.query_sequence)
+					if q >= min_base_quality:
+						if b in ATCG:
+							base_freq[b] += 1
+						else:
+							base_freq['N']+=1
+			# calculate quality stats, ignoring N's
+			base_sum=sum([base_freq[b] for b in ATCG]) 
+			base_max=float(max([base_freq[b] for b in ATCG]))
+			if base_sum >= min_read_depth:
+				r = base_max / base_sum
+				p = stats.binom.cdf(base_max, base_sum, 1.0 - error_rate)
+				pos=base_pileup.pos+1 # 1-based
+				base_stats[pos]['p']=p                 # quality measure
+				base_stats[pos]['ratio_max2all']=r     # dominant base versus others
+				base_stats[pos]['base_cov'] =base_sum  # number of reads covering the base, not counting N's
+				base_stats[pos]['base_freq']=base_freq # dict: {'A':4,'T':1,'C':2,'G':0,'N':0}
+				# base_stats[pos]['ref_base']='?' # in case of reference sequence
+		return base_stats
+	
+	def get_all_base_values(self, stats_value,  *f_args, **f_kwargs):
+		'''
+		get list of p values (or 'ratio_max2all' etc) for all bases that pass argument thresholds
+		p_all = a.get_contig_by_label('CONTIGNAME').get_all_base_values('p', min_base_quality=30)
+		'''
+		base_stats = self.get_base_stats(*f_args, **f_kwargs)
+		return [ base_stats[k].get(stats_value, 'NaN') for k in base_stats]
+#------------------------------------------------------------------------------
 
 
 if __name__ == "__main__":
