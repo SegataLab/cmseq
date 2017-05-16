@@ -27,7 +27,7 @@ Provides breadth and depth of coverage for the contigs in a BAM alignment file, 
 
 ```
 #!python
-usage: cmseq.py bd [-h] [-c CONTIG] [-f] [--mincov MINCOV] [--sortindex] BAMFILE
+usage: cmseq.py bd [-h] [-c CONTIG] [-f] [--sortindex] BAMFILE
 
 calculate the Breadth and Depth of coverage of BAMFILE
 
@@ -41,8 +41,6 @@ optional arguments:
                         fail (FQCFAIL) and duplicate (FDUP) are excluded. If
                         unset ALL reads are considered (bedtools genomecov
                         style). Default: unset
-  --mincov              Only call the consensus on position with coverage higher
-                        than mincov
   --sortindex           Sort and index the file
 ```
 
@@ -51,7 +49,7 @@ optional arguments:
 Provides the Reference Free consensus for the contigs in a BAM alignment file, in FASTA format to standard output. The file must be indexed and sorted (alternatively, --sortindex can be used)
 
 ```
-usage: cmseq.py consensus [-h] [-c CONTIG] [-f] [--sortindex] BAMFILE
+usage: cmseq.py consensus [-h] [-c CONTIG] [-f] [--mincov MINCOV] [--sortindex] BAMFILE
 
 outputs the consensus in FASTA format
 
@@ -66,6 +64,8 @@ optional arguments:
                         fail (FQCFAIL) and duplicate (FDUP) are excluded. If
                         unset ALL reads are considered (bedtools genomecov
                         style). Default: unset
+  --mincov              Only call the consensus on position with coverage higher
+                        than mincov
   --sortindex           Sort and index the file
 ```
 
