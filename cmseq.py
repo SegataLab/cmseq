@@ -195,6 +195,7 @@ if __name__ == "__main__":
 		from Bio.Seq import Seq
 		from Bio.SeqRecord import SeqRecord
 		from Bio.Alphabet import IUPAC
+		import sys
 
 		si = True if args.sortindex else False
 		mode = 'all' if args.f else 'nofilter'
@@ -204,13 +205,13 @@ if __name__ == "__main__":
 		if args.contig is None:
 			lst=[]
 			for i in bf.get_contigs_obj():
-				lst.append(SeqRecord(Seq(i.reference_free_consensus(), IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
-			SeqIO.write(lst,sys.stdin,'fasta')
+				lst.append(SeqRecord(Seq(i.reference_free_consensus( consensus_rule=lambda array: (max(array, key=array.get) ) if sum(array.values() ) > int(args.mincov) else '-'), IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
+			SeqIO.write(lst,sys.stdout,'fasta')
 		else:
 			cn=bf.get_contig_by_label(args.contig)
 			if cn is not None:
 				print '>'+cn.name+'_consensus'
-				print str(cn.reference_free_consensus())
+				print str(cn.reference_free_consensus( consensus_rule=lambda array: (max(array, key=array.get) ) if sum(array.values() ) > int(args.mincov) else '-'))
 
 
 	def plot_coverage_from_file(args):
@@ -246,6 +247,7 @@ if __name__ == "__main__":
 	parser_consensus.add_argument('-c','--contig', help='Get the consensus of a specific contig',default=None)
 	parser_consensus.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_consensus.add_argument('--sortindex', help='Sort and index the file',action='store_true')
+	parser_consensus.add_argument('--mincov', help='Minimum read coverage (on single position) to call the consensus', type=int, default=0)
 	parser_consensus.set_defaults(func=consensus_from_file)
 
 
