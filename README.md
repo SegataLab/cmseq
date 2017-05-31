@@ -6,18 +6,20 @@
 * Coverage plots
 
 **Requires:**
+
 * samtools (> 1.x)
 * numpy
 * pysam
 * matplotlib
 * seaborn
 
+
 **Note: CMSeq can be used [as python module](README_class.md) as well**
 
 ## Usage as Python Program ##
 
+
 ```
-#!python
 usage: cmseq.py [-h] {bd,consensus,coverageplot} ...
 ```
 
@@ -26,7 +28,6 @@ usage: cmseq.py [-h] {bd,consensus,coverageplot} ...
 Provides breadth and depth of coverage for the contigs in a BAM alignment file, in tabular format. The file must be indexed and sorted (alternatively, --sortindex can be used)
 
 ```
-#!python
 usage: cmseq.py bd [-h] [-c CONTIG] [-f] [--sortindex] BAMFILE
 
 calculate the Breadth and Depth of coverage of BAMFILE. Focuses only on
@@ -46,13 +47,11 @@ optional arguments:
                         unset ALL reads are considered (bedtools genomecov
                         style). Default: unset
   --sortindex           Sort and index the file
-
 ```
 
 Examples:
-```
-#!python
 
+```
 # extract breadth and depth of coverage from a sorted and indexed bam file
 cmseq.py bd mybam.sorted.bam
 
@@ -91,9 +90,8 @@ optional arguments:
 ```
 
 Examples:
-```
-#!python
 
+```
 # extract the consensus from all the references from a sorted and indexed BAM file, in FASTA format
 cmseq.py consensus mybam.sorted.bam
 
@@ -141,5 +139,4 @@ optional arguments:
   --l_color L_COLOR     Line color for matplotlib, in HTML format (#XXXXXX)
   --s_color S_COLOR     Scatter color in HTML format (#XXXXXX)
   --s_avoid             Suppresses scatter-plot
-
 ```
