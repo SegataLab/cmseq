@@ -93,6 +93,7 @@ class BamContig:
 		coverage_positions = {}
 		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			coverage_positions[pileupcolumn.pos] = pileupcolumn.n 
+			print pileupcolumn.pos,pileupcolumn.n
 		
 		return (np.mean(coverage_positions.values()),np.median(coverage_positions.values()))
 
@@ -260,9 +261,9 @@ if __name__ == "__main__":
 	import argparse
 	parser = argparse.ArgumentParser()
 	subparsers = parser.add_subparsers(title='subcommands',description='valid subcommands')
-	parser_breadth = subparsers.add_parser('bd',description="calculate the Breadth and Depth of coverage of BAMFILE")
+	parser_breadth = subparsers.add_parser('bd',description="calculate the Breadth and Depth of coverage of BAMFILE. Focuses only on covered regions (i.e. depth >= 1)")
 	parser_breadth.add_argument('BAMFILE', help='The file on which to operate')
-	parser_breadth.add_argument('-c','--contig', help='Get the breadth of a specific contig. Can be a comma-separated list',default=None)
+	parser_breadth.add_argument('-c','--contig', help='Gets the breadth and depth of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
 	parser_breadth.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_breadth.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	parser_breadth.set_defaults(func=bd_from_file)
@@ -270,7 +271,7 @@ if __name__ == "__main__":
 
 	parser_consensus = subparsers.add_parser('consensus',description="outputs the consensus in FASTA format")
 	parser_consensus.add_argument('BAMFILE', help='The file on which to operate')
-	parser_consensus.add_argument('-c','--contig', help='Get the consensus of a specific contig',default=None)
+	parser_consensus.add_argument('-c','--contig', help='Gets the breadth and depth of a specific reference within a BAM Can be a string or a list of strings separated by comma.',default=None)
 	parser_consensus.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_consensus.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	parser_consensus.add_argument('--mincov', help='Minimum read coverage (on single position) to call the consensus', type=int, default=0)
