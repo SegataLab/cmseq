@@ -36,7 +36,8 @@ positional arguments:
 
 optional arguments:
   -c CONTIG, --contig CONTIG
-                        Get the breadth and depth of a specific contig
+                        Get the breadth and depth of a specific contig. Can be a list of contigs (or
+                        genomes) separated by a comma.
   -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
                         fail (FQCFAIL) and duplicate (FDUP) are excluded. If
                         unset ALL reads are considered (bedtools genomecov
@@ -59,7 +60,8 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   -c CONTIG, --contig CONTIG
-                        Get the consensus of a specific contig
+                        Get the consensus of a specific contig. Can be a list of contigs (or
+                        genomes) separated by a comma.
   -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
                         fail (FQCFAIL) and duplicate (FDUP) are excluded. If
                         unset ALL reads are considered (bedtools genomecov
