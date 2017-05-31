@@ -29,20 +29,24 @@ Provides breadth and depth of coverage for the contigs in a BAM alignment file, 
 #!python
 usage: cmseq.py bd [-h] [-c CONTIG] [-f] [--sortindex] BAMFILE
 
-calculate the Breadth and Depth of coverage of BAMFILE
+calculate the Breadth and Depth of coverage of BAMFILE. Focuses only on
+covered regions (i.e. depth >= 1)
 
 positional arguments:
   BAMFILE               The file on which to operate
 
 optional arguments:
-  -c CONTIG, --contig CONTIG
-                        Get the breadth and depth of a specific contig. Can be a list of contigs (or
-                        genomes) separated by a comma.
+  -h, --help            show this help message and exit
+  -c REFERENCE ID, --contig REFERENCE ID
+                        Gets the breadth and depth of a specific reference
+                        within a BAM Can be a string or a list of strings
+                        separated by comma.
   -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
                         fail (FQCFAIL) and duplicate (FDUP) are excluded. If
                         unset ALL reads are considered (bedtools genomecov
                         style). Default: unset
   --sortindex           Sort and index the file
+
 ```
 
 ### Subcommand consensus ###
