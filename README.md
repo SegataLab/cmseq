@@ -49,6 +49,20 @@ optional arguments:
 
 ```
 
+Examples:
+```
+#!python
+
+# extract breadth and depth of coverage from a sorted and indexed bam file
+cmseq.py  bd mybam.sorted.bam
+
+# extract breadth and depth of coverage from an unsorted bam file
+cmseq.py  bd --sortindex mybam.sorted.bam 
+
+# extract breadth and depth of coverage from an unsorted bam file, only for reads aligning against genome_1 or genome_2
+cmseq.py  bd --sortindex -c genome_1,genome_2  mybam.sorted.bam
+```
+
 ### Subcommand consensus ###
 
 Provides the Reference Free consensus for the contigs in a BAM alignment file, in FASTA format to standard output. The file must be indexed and sorted (alternatively, --sortindex can be used)
