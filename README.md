@@ -78,15 +78,31 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   -c CONTIG, --contig CONTIG
-                        Get the consensus of a specific contig. Can be a list of contigs (or
-                        genomes) separated by a comma.
+                        Gets the breadth and depth of a specific reference
+                        within a BAM Can be a string or a list of strings
+                        separated by comma.
   -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
                         fail (FQCFAIL) and duplicate (FDUP) are excluded. If
                         unset ALL reads are considered (bedtools genomecov
                         style). Default: unset
-  --mincov              Only call the consensus on position with coverage higher
-                        than mincov
   --sortindex           Sort and index the file
+  --mincov MINCOV       Minimum read coverage (on single position) to call the
+                        consensus
+```
+
+Examples:
+```
+#!python
+
+# extract the consensus from all the references from a sorted and indexed BAM file, in FASTA format
+cmseq.py consensus mybam.sorted.bam
+
+# extract the consensus from all the references from an unsorted BAM file, in FASTA format
+cmseq.py consensus --sortindex mybam.sorted.bam 
+
+# extract the consensus of genome_1 and genome_2 from a BAM file. Positions with coverage lower than 5 are ignored (N is reported instead of base-call).
+
+cmseq.py consensus --mincov 5 -c genome_1,genome_2 mybam.sorted.bam
 ```
 
 ### Subcommand coverageplot ###
