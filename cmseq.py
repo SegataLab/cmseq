@@ -48,9 +48,29 @@ class BamContig:
 	def set_stepper(self,ns):
 		if ns in ['all','nofilter']: self.stepper = ns
 
+	
 	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get)):
 
 		consensus_positions = {}
+
+		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=1, min_base_quality=0, error_rate=0.01).items():
+			consensus_positions[pileupcolumn] = consensus_rule(position_data['base_freq'])
+			#print 'GAMMA'+str((pileupcolumn)-1)+'_'+repr(position_data['base_freq'])+'_'+repr(consensus_positions[pileupcolumn])
+
+
+		self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else 'N') for position in range(1,self.length+1)])
+		
+		del consensus_positions
+		return self.consensus
+		
+
+
+	def fast_reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get)):
+
+		consensus_positions = {}
+
+
+
 		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			consensus_positions[pileupcolumn.pos] = {'A':0,'T':0,'C':0,'G':0,'N':0}
 			for pileupread in pileupcolumn.pileups:
@@ -59,7 +79,9 @@ class BamContig:
 					if base in ['A','T','C','G']: consensus_positions[pileupcolumn.pos][base]+=1
 					else: consensus_positions[pileupcolumn.pos]['N']+=1
 
+			#print 'GAMMA'+str(pileupcolumn.pos)+'_'+repr(consensus_positions[pileupcolumn.pos])+'_'+consensus_rule(consensus_positions[pileupcolumn.pos])
 			consensus_positions[pileupcolumn.pos] = consensus_rule(consensus_positions[pileupcolumn.pos])
+			
 
 
 		self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else 'N') for position in range(0,self.length)])
@@ -135,7 +157,7 @@ class BamContig:
 		from collections import defaultdict
 		base_stats = defaultdict(dict)
 		ATCG=('A','T','C','G')
-		for base_pileup in self.bam_handle.pileup(self.name,stepper='nofilter'):
+		for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			base_freq = {'A':0,'T':0,'C':0,'G':0,'N':0}
 			for matched_read in base_pileup.pileups:
 				if not matched_read.is_del and not matched_read.is_refskip:
@@ -185,9 +207,10 @@ if __name__ == "__main__":
 			for i in bf.get_contigs_obj():
 				print i.name+'\t'+str(i.breadth_of_coverage())+'\t'+str(i.depth_of_coverage()[0])+'\t'+str(i.depth_of_coverage()[1])
 		else:
-			cn= bf.get_contig_by_label(args.contig)
-			if cn is not None:
-				print cn.name+'\t'+str(cn.breadth_of_coverage())+'\t'+str(cn.depth_of_coverage()[0])+'\t'+str(cn.depth_of_coverage()[1])
+			for contig in args.contig.split(','):
+				cn= bf.get_contig_by_label(contig)
+				if cn is not None:
+					print cn.name+'\t'+str(cn.breadth_of_coverage())+'\t'+str(cn.depth_of_coverage()[0])+'\t'+str(cn.depth_of_coverage()[1])
 
 
 	def consensus_from_file(args):
@@ -208,10 +231,13 @@ if __name__ == "__main__":
 				lst.append(SeqRecord(Seq(i.reference_free_consensus( consensus_rule=lambda array: (max(array, key=array.get) ) if sum(array.values() ) > int(args.mincov) else '-'), IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
 			SeqIO.write(lst,sys.stdout,'fasta')
 		else:
-			cn=bf.get_contig_by_label(args.contig)
-			if cn is not None:
-				print '>'+cn.name+'_consensus'
-				print str(cn.reference_free_consensus( consensus_rule=lambda array: (max(array, key=array.get) ) if sum(array.values() ) > int(args.mincov) else '-'))
+			for contig in args.contig.split(','):
+				cn=bf.get_contig_by_label(contig)
+				if cn is not None:
+					lst = [SeqRecord(Seq(cn.reference_free_consensus( consensus_rule=lambda array: (max(array, key=array.get) ) if sum(array.values() ) > int(args.mincov) else '-'), IUPAC.IUPACAmbiguousDNA), id=cn.name+'_consensus', description='')]
+					SeqIO.write(lst,sys.stdout,'fasta')
+
+				
 
 
 	def plot_coverage_from_file(args):
@@ -236,7 +262,7 @@ if __name__ == "__main__":
 	subparsers = parser.add_subparsers(title='subcommands',description='valid subcommands')
 	parser_breadth = subparsers.add_parser('bd',description="calculate the Breadth and Depth of coverage of BAMFILE")
 	parser_breadth.add_argument('BAMFILE', help='The file on which to operate')
-	parser_breadth.add_argument('-c','--contig', help='Get the breadth of a specific contig',default=None)
+	parser_breadth.add_argument('-c','--contig', help='Get the breadth of a specific contig. Can be a comma-separated list',default=None)
 	parser_breadth.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_breadth.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	parser_breadth.set_defaults(func=bd_from_file)
