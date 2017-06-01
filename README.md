@@ -23,7 +23,7 @@
 usage: cmseq.py [-h] {bd,consensus,coverageplot} ...
 ```
 
-### Subcommand bd (Breadth-Depth) ###
+### Subcommand `bd` (Breadth-Depth) ###
 
 Provides breadth and depth of coverage for the contigs in a BAM alignment file, in tabular format. The file must be indexed and sorted (alternatively, --sortindex can be used)
 
@@ -62,7 +62,7 @@ cmseq.py bd --sortindex mybam.sorted.bam
 cmseq.py bd --sortindex -c genome_1,genome_2 mybam.sorted.bam
 ```
 
-### Subcommand consensus ###
+### Subcommand `consensus` ###
 
 Provides the Reference Free consensus for the contigs in a BAM alignment file, in FASTA format to standard output. The file must be indexed and sorted (alternatively, --sortindex can be used)
 
@@ -103,7 +103,7 @@ cmseq.py consensus --sortindex mybam.sorted.bam
 cmseq.py consensus --mincov 5 -c genome_1,genome_2 mybam.sorted.bam
 ```
 
-### Subcommand coverageplot ###
+### Subcommand `coverageplot` ###
 
 Generates a linear or polar coverage plot for the contigs in a BAM alignment file.  The file must be indexed and sorted (alternatively, --sortindex can be used)
 
