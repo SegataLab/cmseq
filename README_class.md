@@ -67,11 +67,11 @@ The function can use the optional parameters:
 * `mincov`: the consensus will be based only on those positions with at least MINCOV coverage (after the quality filtering of `minqual`). **Default: 1**, meaning everything is used.
 
 * `consensus_rule`: a custom consensus function that:
-  ** The function takes as input a python dictionary and is applied to each column of the samtools pileup. 
-  ** The dictionary has this structre: {'A':0,'T':0,'C':0,'G':0,'N':0} and stores the counts (coverages) for each position in each nucleotide ("N" = anything else) 
-  ** The function must returns a char
-  ** The default function is: *lambda array: max(array, key=array.get)* (pure majority rule).
-  ** The function is applied only to positions with at least one covering read: other positions are reported as an "N"
+  - The function takes as input a python dictionary and is applied to each column of the samtools pileup. 
+  - The dictionary has this structre: {'A':0,'T':0,'C':0,'G':0,'N':0} and stores the counts (coverages) for each position in each nucleotide ("N" = anything else) 
+  - The function must returns a char
+  - The default function is: `lambda array: max(array, key=array.get)` (pure majority rule).
+  - The function is applied only to positions with at least one covering read: other positions are reported as an "N"
 
 Examples
 ```
