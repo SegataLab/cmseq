@@ -49,21 +49,20 @@ class BamContig:
 		if ns in ['all','nofilter']: self.stepper = ns
 
 	
-	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get)):
+	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get),mincov=1,minqual=20):
 
 		consensus_positions = {}
 
-		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=1, min_base_quality=0, error_rate=0.01).items():
+		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01).items():
 			consensus_positions[pileupcolumn] = consensus_rule(position_data['base_freq'])
 			#print 'GAMMA'+str((pileupcolumn)-1)+'_'+repr(position_data['base_freq'])+'_'+repr(consensus_positions[pileupcolumn])
 
 
-		self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else 'N') for position in range(1,self.length+1)])
+		self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else '-') for position in range(1,self.length+1)])
 		
 		del consensus_positions
 		return self.consensus
 		
-
 
 	def fast_reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get)):
 
@@ -87,12 +86,6 @@ class BamContig:
 		del consensus_positions
 		return self.consensus
 		
-	def depth_of_coverage(self):
-		coverage_positions = {}
-		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
-			coverage_positions[pileupcolumn.pos] = pileupcolumn.n 
-		
-		return (np.mean(coverage_positions.values()),np.median(coverage_positions.values()))
 
 	def polymorphism_rate(self,mincov=1,minqual=0):
 		
@@ -101,17 +94,58 @@ class BamContig:
 		return float(sum([(1 if p < 0.05 else 0) for p in poly_p_values])) / len(poly_p_values)
 
 
-	def breadth_of_coverage(self):
+	def breadth_and_depth_of_coverage(self,mincov=1,minqual=0):
 		coverage_positions = {}
 		ptl=0
 		
-		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):			
-			if len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ['A','T','C','G'] ]) > 0:
-				ptl += 1
+		if minqual == 0:
+			for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):			
+				covfefe = len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
+				if covfefe >= mincov:
+					coverage_positions[pileupcolumn.pos] = covfefe
 
+
+		else:
+			for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):			
+				#print minqual,len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]), len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
+				covfefe = len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
+				if covfefe >= mincov:
+					coverage_positions[pileupcolumn.pos] = covfefe
+					
+		
+		breadth = float(len(coverage_positions.keys()))/self.length
+		avgdepth = np.mean(coverage_positions.values())
+		mediandepth = np.median(coverage_positions.values())
+
+		return (breadth,avgdepth,mediandepth)
+
+
+
+	def depth_of_coverage(self,mincov=1,minqual=0):
+		coverage_positions = {}
+		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
+			if pileupcolumn.n >= mincov: coverage_positions[pileupcolumn.pos] = len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
+		
+		return (np.mean(coverage_positions.values()),np.median(coverage_positions.values()))
+
+
+	def breadth_of_coverage(self,mincov=1,minqual=0):
+		coverage_positions = {}
+		ptl=0
+		
+		if minqual == 0:
+			for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):			
+				if len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]) >= mincov:
+					ptl += 1
+
+		else:
+			for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):			
+				#print minqual,len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]), len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
+				if len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]) >= mincov:
+					ptl += 1
 		
 		return float(ptl)/self.length
-
+     
 	def plot_coverage(self,flavour='polar',path='./out.pdf',smooth=0,l_avoid=False,s_avoid=False,l_color='#000000',s_color='#000000'):
 		
 		import matplotlib
@@ -165,16 +199,20 @@ class BamContig:
 		for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			base_freq = {'A':0,'T':0,'C':0,'G':0,'N':0}
 			for matched_read in base_pileup.pileups:
+				
+				
 				if not matched_read.is_del and not matched_read.is_refskip:
 					b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
-					q = matched_read.alignment.query_qualities[matched_read.query_position]
+					q = matched_read.alignment.query_qualities[matched_read.query_position]	
+
 					# if b=='N': print(matched_read.alignment.query_sequence)
 					if q >= min_base_quality:
 						if b in ATCG:
 							base_freq[b] += 1
 						else:
 							base_freq['N']+=1
-			# calculate quality stats, ignoring N's
+			# calculate quality stats, ignoring N's 
+
 			base_sum=sum([base_freq[b] for b in ATCG]) 
 			base_max=float(max([base_freq[b] for b in ATCG]))
 			if base_sum >= min_read_depth:
@@ -227,7 +265,8 @@ if __name__ == "__main__":
 		print 'Contig\tBreadth\tDepth (avg)\tDepth (median)'
 
 		for i in tl:
-			print i.name+'\t'+str(i.breadth_of_coverage())+'\t'+str(i.depth_of_coverage()[0])+'\t'+str(i.depth_of_coverage()[1])
+			bd_result = i.breadth_and_depth_of_coverage(minqual=args.minqual,mincov=args.mincov)
+			print i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2])
 		
 
 	def consensus_from_file(args):
@@ -248,7 +287,7 @@ if __name__ == "__main__":
 		lst = []
 
 		for i in tl:
-			lst.append(SeqRecord(Seq(i.reference_free_consensus( consensus_rule=lambda array: (max(array, key=array.get) ) if sum(array.values() ) > int(args.mincov) else '-'), IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
+			lst.append(SeqRecord(Seq(i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual), IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
 		SeqIO.write(lst,sys.stdout,'fasta')
 		
 				
@@ -273,35 +312,42 @@ if __name__ == "__main__":
 	
 
 	subparsers = parser.add_subparsers(title='subcommands',description='valid subcommands')
-	parser_breadth = subparsers.add_parser('bd',description="calculate the Breadth and Depth of coverage of BAMFILE. Focuses only on covered regions (i.e. depth >= 1)")
+	parser_breadth = subparsers.add_parser('bd',description="calculate the Breadth and Depth of coverage of BAMFILE.")
 	parser_breadth.add_argument('BAMFILE', help='The file on which to operate')
 	parser_breadth.add_argument('-c','--contig', help='Gets the breadth and depth of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
 	parser_breadth.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_breadth.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	parser_breadth.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
+	parser_breadth.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 0', type=int, default=0)
+	parser_breadth.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
+	
 
 
 	parser_breadth.set_defaults(func=bd_from_file)
 
-	parser_poly = subparsers.add_parser('poly',description="As breadth-depth, but also calculates the polymorpgic rate of each reference. Focuses only on covered regions (i.e. depth >= 1)")
+	parser_poly = subparsers.add_parser('poly',description="Reports the polymorpgic rate of each reference (polymorphic bases / total bases). Focuses only on covered regions (i.e. depth >= 1)")
 	parser_poly.add_argument('BAMFILE', help='The file on which to operate')
-	parser_poly.add_argument('-c','--contig', help='Gets the breadth and depth of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
+	parser_poly.add_argument('-c','--contig', help='Gets the polymorphic rate _of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
 	parser_poly.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_poly.add_argument('--sortindex', help='Sort and index the file',action='store_true')
-	parser_poly.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation', type=int, default=1)
-	parser_poly.add_argument('--minqual', help='Minimum position quality to perform the polymorphism calculation', type=int, default=0)
+	
 	parser_poly.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
+	parser_poly.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 0', type=int, default=0)
+	parser_poly.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
+	
+	
 	parser_poly.set_defaults(func=poly_from_file)
 
-
-
-	parser_consensus = subparsers.add_parser('consensus',description="outputs the consensus in FASTA format")
+	parser_consensus = subparsers.add_parser('consensus',description="outputs the consensus in FASTA format. Non covered positions (or quality-trimmed positions) are reported as a dashes: -")
 	parser_consensus.add_argument('BAMFILE', help='The file on which to operate')
 	parser_consensus.add_argument('-c','--contig', help='Gets the breadth and depth of a specific reference within a BAM Can be a string or a list of strings separated by comma.',default=None)
 	parser_consensus.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_consensus.add_argument('--sortindex', help='Sort and index the file',action='store_true')
-	parser_consensus.add_argument('--mincov', help='Minimum read coverage (on single position) to call the consensus', type=int, default=0)
+	parser_consensus.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 0', type=int, default=0)
+	parser_consensus.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
 	parser_consensus.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
+
+
 	parser_consensus.set_defaults(func=consensus_from_file)
 
 
