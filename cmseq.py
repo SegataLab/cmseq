@@ -327,7 +327,7 @@ if __name__ == "__main__":
 
 	parser_poly = subparsers.add_parser('poly',description="Reports the polymorpgic rate of each reference (polymorphic bases / total bases). Focuses only on covered regions (i.e. depth >= 1)")
 	parser_poly.add_argument('BAMFILE', help='The file on which to operate')
-	parser_poly.add_argument('-c','--contig', help='Gets the polymorphic rate of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
+	parser_poly.add_argument('-c','--contig', help='Gets the polymorphic rate _of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
 	parser_poly.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_poly.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	
