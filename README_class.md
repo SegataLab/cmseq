@@ -27,7 +27,7 @@ To start from a pre-sorted and indexed bam file:
 collection = cmseq.BamFile(BAM_FILE_PATH)
 ```
 
-To set the pysam stepper to a custom value (e.g. 'all', that avoids secondary alignments or 'nofilter', that includes secondary alignments):
+To set the pysam stepper to a custom value (e.g. `all`, that avoids secondary alignments or `nofilter`, that includes secondary alignments):
 ```
 #!python
 #Impose a custom stepper for all the contigs of the BAMFILE
@@ -43,7 +43,7 @@ collection = cmseq.BamFile(BAM_FILE_PATH,minlen=5000)
 
 ### class BamContig ###
 
-Represents a contig to which some reads map against
+Represents a reference to which some reads map against
 
 To create a new BamContig:
 *Note*: this is NOT needed if a BamFile instance has been created before, as this is done automatically for each contig within the bamfile
@@ -118,7 +118,7 @@ BamContig.plot_coverage(flavour='polar',path='./out.pdf',smooth=0,l_avoid=False,
 
 **Set the Pysam stepper**
 
-BamContig.**set_stepper({'all','nofilter'})**: resets the pysam stepper for the contig. By default the stepper is set to 'nofilter' (bedtools style).
+BamContig.**set_stepper(VALUE)**: resets the pysam stepper for the reference. VALUE can be `all` or `nofilter`, as of the pysam specifications. By default the stepper is set to 'nofilter' (bedtools style).
 
 ### Examples ###
 
