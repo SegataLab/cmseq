@@ -8,7 +8,7 @@ class BamFile:
 	bam_handle = None
 	contigs = {}
 
-	def __init__(self,bamFile,sort=False,index=False,stepper='nofilter'):
+	def __init__(self,bamFile,sort=False,index=False,stepper='nofilter',minlen=0):
 		if not os.path.isfile(bamFile):
 			raise Exception(bamFile+' is not accessible, or is not a file')
 
@@ -22,7 +22,7 @@ class BamFile:
 
 		bamHandle = pysam.AlignmentFile(fp, "rb")
 		self.bam_handle = bamHandle
-		self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths))
+		self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if l > minlen)
 
 	def get_contigs(self): return iter(self.contigs.keys())
 	def get_contigs_obj(self): return iter(self.contigs.values())
@@ -69,8 +69,6 @@ class BamContig:
 
 		consensus_positions = {}
 
-
-
 		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			consensus_positions[pileupcolumn.pos] = {'A':0,'T':0,'C':0,'G':0,'N':0}
 			for pileupread in pileupcolumn.pileups:
@@ -93,9 +91,15 @@ class BamContig:
 		coverage_positions = {}
 		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			coverage_positions[pileupcolumn.pos] = pileupcolumn.n 
-			print pileupcolumn.pos,pileupcolumn.n
 		
 		return (np.mean(coverage_positions.values()),np.median(coverage_positions.values()))
+
+	def polymorphism_rate(self,mincov=1,minqual=0):
+		
+		#return float(sum([(1 if position_data['p'] < 0.05 else 0)  for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01).items()])) / self.length
+		poly_p_values = self.get_all_base_values("p",min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01)
+		return float(sum([(1 if p < 0.05 else 0) for p in poly_p_values])) / len(poly_p_values)
+
 
 	def breadth_of_coverage(self):
 		coverage_positions = {}
@@ -196,23 +200,35 @@ class BamContig:
 
 if __name__ == "__main__":
 
+	def poly_from_file(args):
+
+		si = True if args.sortindex else False
+		mode = 'all' if args.f else 'nofilter'
+		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
+
+		print 'Contig\tPolymorphism Rate'
+
+		tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
+
+		for element in tl:
+			print element.name+'\t'+str(element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov))
+
+
+
 	def bd_from_file(args):
 
 		si = True if args.sortindex else False
 		mode = 'all' if args.f else 'nofilter'
-		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode)
+
+		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
+
+		tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
 
 		print 'Contig\tBreadth\tDepth (avg)\tDepth (median)'
 
-		if args.contig is None:
-			for i in bf.get_contigs_obj():
-				print i.name+'\t'+str(i.breadth_of_coverage())+'\t'+str(i.depth_of_coverage()[0])+'\t'+str(i.depth_of_coverage()[1])
-		else:
-			for contig in args.contig.split(','):
-				cn= bf.get_contig_by_label(contig)
-				if cn is not None:
-					print cn.name+'\t'+str(cn.breadth_of_coverage())+'\t'+str(cn.depth_of_coverage()[0])+'\t'+str(cn.depth_of_coverage()[1])
-
+		for i in tl:
+			print i.name+'\t'+str(i.breadth_of_coverage())+'\t'+str(i.depth_of_coverage()[0])+'\t'+str(i.depth_of_coverage()[1])
+		
 
 	def consensus_from_file(args):
 		from Bio import SeqIO
@@ -224,20 +240,17 @@ if __name__ == "__main__":
 		si = True if args.sortindex else False
 		mode = 'all' if args.f else 'nofilter'
 
-		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode)
 
-		if args.contig is None:
-			lst=[]
-			for i in bf.get_contigs_obj():
-				lst.append(SeqRecord(Seq(i.reference_free_consensus( consensus_rule=lambda array: (max(array, key=array.get) ) if sum(array.values() ) > int(args.mincov) else '-'), IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
-			SeqIO.write(lst,sys.stdout,'fasta')
-		else:
-			for contig in args.contig.split(','):
-				cn=bf.get_contig_by_label(contig)
-				if cn is not None:
-					lst = [SeqRecord(Seq(cn.reference_free_consensus( consensus_rule=lambda array: (max(array, key=array.get) ) if sum(array.values() ) > int(args.mincov) else '-'), IUPAC.IUPACAmbiguousDNA), id=cn.name+'_consensus', description='')]
-					SeqIO.write(lst,sys.stdout,'fasta')
 
+		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
+		tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
+
+		lst = []
+
+		for i in tl:
+			lst.append(SeqRecord(Seq(i.reference_free_consensus( consensus_rule=lambda array: (max(array, key=array.get) ) if sum(array.values() ) > int(args.mincov) else '-'), IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
+		SeqIO.write(lst,sys.stdout,'fasta')
+		
 				
 
 
@@ -245,28 +258,41 @@ if __name__ == "__main__":
 
 		si = True if args.sortindex else False
 		mode = 'all' if args.f else 'nofilter'
-		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode)
+		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
 
+		tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
 
-		if args.contig is None: l = bf.get_contigs_obj()
-		else:
-			cn= bf.get_contig_by_label(args.contig)
-			if cn is not None:
-				l = [cn]
-
-		for i in l:
+		for i in tl:
 			i.plot_coverage(path='./'+i.name+'.'+args.format,smooth=args.smooth,l_avoid=args.l_avoid,s_avoid=args.s_avoid,l_color=args.l_color,s_color=args.s_color,flavour=args.flavour)
 
 
 	import argparse
 	parser = argparse.ArgumentParser()
+
+
+	
+
 	subparsers = parser.add_subparsers(title='subcommands',description='valid subcommands')
 	parser_breadth = subparsers.add_parser('bd',description="calculate the Breadth and Depth of coverage of BAMFILE. Focuses only on covered regions (i.e. depth >= 1)")
 	parser_breadth.add_argument('BAMFILE', help='The file on which to operate')
 	parser_breadth.add_argument('-c','--contig', help='Gets the breadth and depth of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
 	parser_breadth.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_breadth.add_argument('--sortindex', help='Sort and index the file',action='store_true')
+	parser_breadth.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
+
+
 	parser_breadth.set_defaults(func=bd_from_file)
+
+	parser_poly = subparsers.add_parser('poly',description="As breadth-depth, but also calculates the polymorpgic rate of each reference. Focuses only on covered regions (i.e. depth >= 1)")
+	parser_poly.add_argument('BAMFILE', help='The file on which to operate')
+	parser_poly.add_argument('-c','--contig', help='Gets the breadth and depth of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
+	parser_poly.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
+	parser_poly.add_argument('--sortindex', help='Sort and index the file',action='store_true')
+	parser_poly.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation', type=int, default=1)
+	parser_poly.add_argument('--minqual', help='Minimum position quality to perform the polymorphism calculation', type=int, default=0)
+	parser_poly.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
+	parser_poly.set_defaults(func=poly_from_file)
+
 
 
 	parser_consensus = subparsers.add_parser('consensus',description="outputs the consensus in FASTA format")
@@ -275,6 +301,7 @@ if __name__ == "__main__":
 	parser_consensus.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_consensus.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	parser_consensus.add_argument('--mincov', help='Minimum read coverage (on single position) to call the consensus', type=int, default=0)
+	parser_consensus.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
 	parser_consensus.set_defaults(func=consensus_from_file)
 
 
@@ -292,7 +319,7 @@ if __name__ == "__main__":
 	parser_coverageplot.add_argument('--l_color', help='Line color for matplotlib, in HTML format (#XXXXXX)',default='#000000')
 	parser_coverageplot.add_argument('--s_color', help='Scatter color in HTML format (#XXXXXX)',default='#000000')
 	parser_coverageplot.add_argument('--s_avoid', help='Suppresses scatter-plot',action='store_true')
-	
+	parser_coverageplot.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
 	parser_coverageplot.set_defaults(func=plot_coverage_from_file)
 
 
