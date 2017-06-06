@@ -18,7 +18,7 @@ Represents a collection of contig/reference of a bam file
 To create a new BamContig from an unsorted BAM file:
 ```
 #!python
-collection = cmseq.BamFile(BAM_FILE_PATH,sort=True,index=True)
+collection = cmseq.BamFile(BAM_FILE_PATH,sort=True,index=True,minlen=0)
 ```
 
 To start from a pre-sorted and indexed bam file:
@@ -32,6 +32,13 @@ To set the pysam stepper to a custom value (e.g. 'all', that avoids secondary al
 #!python
 #Impose a custom stepper for all the contigs of the BAMFILE
 collection = cmseq.BamFile(BAM_FILE_PATH,stepper='all')
+```
+
+To take into accounts only references (/contigs) longer than N, use `minlen`:
+```
+#!python
+#Build the collection only on contigs / references longer than 5000
+collection = cmseq.BamFile(BAM_FILE_PATH,minlen=5000)
 ```
 
 ### class BamContig ###
@@ -54,27 +61,45 @@ contig = cmseq.BamContig(bamHandle,contigName,contigLength)
 
 reference_free_consensus(): returns a string, long as the reference, with the consensus.
 
-Optionally, a **custom consensus function** can be passed:
+The function can use the optional parameters:
 
-* The function takes as input a python dictionary and is applied to each column of the samtools pileup. 
-* The dictionary has this structre: {'A':0,'T':0,'C':0,'G':0,'N':0} and stores the counts (coverages) for each position in each nucleotide ("N" = anything else) 
-* The function must returns a char
-* The default function is: *lambda array: max(array, key=array.get)* (pure majority rule).
-* The function is applied only to positions with at least one covering read: other positions are reported as an "N"
+* `minqual`: the consensus will be based only on those nucleotides with a mapping-quality higher than minqual. **Default: 0**, meaning everything is used
+* `mincov`: the consensus will be based only on those positions with at least MINCOV coverage (after the quality filtering of `minqual`). **Default: 1**, meaning everything is used.
 
-Example: use a custom consensus rule: return X for each position
+* `consensus_rule`: a custom consensus function that:
+  * The function takes as input a python dictionary and is applied to each column of the samtools pileup. 
+  * The dictionary has this structre: {'A':0,'T':0,'C':0,'G':0,'N':0} and stores the counts (coverages) for each position in each nucleotide ("N" = anything else) 
+  * The function must returns a char
+  * The default function is: *lambda array: max(array, key=array.get)* (pure majority rule).
+  * The function is applied only to positions with at least one covering read: other positions are reported as an "N"
+
+Examples
 ```
 #!python
-print a.get_contig_by_label("CONTIG_NAME").reference_free_consensus(consensus_rule=lambda array: 'X')
+# Get the simplest majority rule (default) consensus of REFERENCE_NAME:
+print a.get_contig_by_label("REFERENCE_NAME").reference_free_consensus()
+
+# Get the simplest majority rule (default) consensus of REFERENCE_NAME considering positions covered by at least 5 reads with qualities higher than 33:
+print a.get_contig_by_label("REFERENCE_NAME").reference_free_consensus(mincov=5,minqual=33)
+
+# Use a custom consensus rule: return X for each position
+print a.get_contig_by_label("REFERENCE_NAME").reference_free_consensus(consensus_rule=lambda array: 'X')
 ```
 
 **Depth of Coverage**
 
-BamContig.**depth_of_coverage()**: returns a tuple, with the (mean_coverage,median_coverage) values, calculated over the positions that have a coverage of at least 1 (at least one mapping read on that position)
+BamContig.**depth_of_coverage()**: returns a tuple, with the (mean_coverage,median_coverage) values, calculated over the positions that have a coverage of at least 1 (at least one mapping read on that position). Optionally, can take:
+
+* `minqual`: the nucleotides considered are only those that have a quality score higher than MINQUAL. **Default: 0**, meaning everything is used
+* `mincov`: the depth is based only on those positions with at least MINCOV coverage (after the quality filtering of `minqual`). **Default: 1**, meaning everything is used.
 
 **Breadth of Coverage**
 
-BamContig.**breadth_of_coverage**: returns a float, with the percentage of the total reference length covered by at least one read
+BamContig.**breadth_of_coverage**: returns a float, with the percentage of the total reference length covered by reads. It takes as optional parameters `mincov` and `minqual` as *depth_of_coverage*
+
+**Polymorphic Rate**
+
+BamContig.**polymorphism_rate**: returns a float, with the percentage of polymorphic positions, over the total number of reconstructable positions. It takes as optional parameters `mincov` and `minqual` as *depth_of_coverage*. 
 
 **Coverage Plot**
 BamContig.**plot_coverage()** produces a PDF file with a coverage plot. 
@@ -111,28 +136,34 @@ Iterate over each contig represented in the BAM/SAM file:
 ```
 #!python
 for i in collection.get_contigs():
- 	print i,collection.get_contig_by_label(i).reference_free_consensus()
- 	print collection.get_contig_by_label(i).depth_of_coverage()  #(mean,median)
- 	print collection.get_contig_by_label(i).breadth_of_coverage()
+  print i,collection.get_contig_by_label(i).reference_free_consensus()
+  print collection.get_contig_by_label(i).depth_of_coverage()  #(mean,median)
+  print collection.get_contig_by_label(i).breadth_of_coverage()
 ```
 Select a custom contig and get its consensus sequence by majoriy rule:
 ```
 #!python
-print collection.get_contig_by_label("CONTIG_NAME").reference_free_consensus()
+print collection.get_contig_by_label("REFERENCE_NAME").reference_free_consensus()
 ```
 
 Select a custom contig and plot its coverage
 ```
 #!python
-collection.get_contig_by_label("CONTIG_NAME").plot_coverage('out.pdf')
+collection.get_contig_by_label("REFERENCE_NAME").plot_coverage('out.pdf')
 ```
 
+Select a custom contig and get its consensus sequence by majoriy rule, only for positions covered by at least 10 high quality reads:
+
+```
+#!python
+print collection.get_contig_by_label("REFERENCE_NAME").reference_free_consensus(mincov=10,minqual=33)
+```
 
 Select a custom contig and get a custom consensus sequence, with "+" where coverage is higher or equal 2, - otherwise:
 
 ```
 #!python
-print collection.get_contig_by_label("CONTIG_NAME").reference_free_consensus(consensus_rule=lambda array: '+' if sum(array.values()) >= 2 else '-')
+print collection.get_contig_by_label("REFERENCE_NAME").reference_free_consensus(consensus_rule=lambda array: '+' if sum(array.values()) >= 2 else '-')
 ```
 
 Do the same as before, without using the BamFile class, but with pysam only. The bam file needs to be sorted and indexed!
