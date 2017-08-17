@@ -91,7 +91,9 @@ class BamContig:
 		
 		#return float(sum([(1 if position_data['p'] < 0.05 else 0)  for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01).items()])) / self.length
 		poly_p_values = self.get_all_base_values("p",min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01)
-		return float(sum([(1 if p < 0.05 else 0) for p in poly_p_values])) / len(poly_p_values)
+		if len(poly_p_values) > 0: 
+			return float(sum([(1 if p < 0.05 else 0) for p in poly_p_values])) / len(poly_p_values)
+		else: return np.nan
 
 
 	def breadth_and_depth_of_coverage(self,mincov=1,minqual=0):
