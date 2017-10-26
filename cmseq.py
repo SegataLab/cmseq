@@ -49,16 +49,21 @@ class BamContig:
 		if ns in ['all','nofilter']: self.stepper = ns
 
 	
-	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get),mincov=1,minqual=20):
+	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get),mincov=1,minqual=20,fast=False):
+
+		if (fast) : return self.fast_reference_free_consensus(consensus_rule)
+
 
 		consensus_positions = {}
-
+		
 		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01).items():
 			consensus_positions[pileupcolumn] = consensus_rule(position_data['base_freq'])
 			#print 'GAMMA'+str((pileupcolumn)-1)+'_'+repr(position_data['base_freq'])+'_'+repr(consensus_positions[pileupcolumn])
 
-
-		self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else '-') for position in range(1,self.length+1)])
+		if len(consensus_positions) > 0 : 
+			self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else '-') for position in range(1,self.length+1)])
+		else:
+			self.consensus = None
 		
 		del consensus_positions
 		return self.consensus
@@ -76,12 +81,12 @@ class BamContig:
 					if base in ['A','T','C','G']: consensus_positions[pileupcolumn.pos][base]+=1
 					else: consensus_positions[pileupcolumn.pos]['N']+=1
 
-			#print 'GAMMA'+str(pileupcolumn.pos)+'_'+repr(consensus_positions[pileupcolumn.pos])+'_'+consensus_rule(consensus_positions[pileupcolumn.pos])
 			consensus_positions[pileupcolumn.pos] = consensus_rule(consensus_positions[pileupcolumn.pos])
-			
 
-
-		self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else 'N') for position in range(0,self.length)])
+		if len(consensus_positions) > 0 : 
+			self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else 'N') for position in range(0,self.length)])
+		else:
+			self.consensus = None
 		
 		del consensus_positions
 		return self.consensus
@@ -289,7 +294,9 @@ if __name__ == "__main__":
 		lst = []
 
 		for i in tl:
-			lst.append(SeqRecord(Seq(i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual), IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
+			sq = i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual,fast=(True if args.fast else False))
+			if sq is not None:
+				lst.append(SeqRecord(Seq(sq, IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
 		SeqIO.write(lst,sys.stdout,'fasta')
 		
 				
@@ -348,6 +355,7 @@ if __name__ == "__main__":
 	parser_consensus.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 0', type=int, default=0)
 	parser_consensus.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
 	parser_consensus.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
+	parser_consensus.add_argument('--fast', help='Fast version (does not account for polymorphism)',action='store_true')
 
 
 	parser_consensus.set_defaults(func=consensus_from_file)
