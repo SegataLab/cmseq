@@ -305,8 +305,6 @@ if __name__ == "__main__":
 		mode = 'all' if args.f else 'nofilter'
 		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
 
-		
-		get_contig_list(args.contig)
 
 		outputDF = []
 		allRatios = []
@@ -349,7 +347,7 @@ if __name__ == "__main__":
 
 		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
 
-		tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
+		tl = [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj())
 
 		print 'Contig\tBreadth\tDepth (avg)\tDepth (median)'
 
@@ -371,7 +369,8 @@ if __name__ == "__main__":
 
 
 		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
-		tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
+		#tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
+		tl = [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj())
 
 		lst = []
 
