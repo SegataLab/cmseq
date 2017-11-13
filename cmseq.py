@@ -2,6 +2,8 @@
 
 import os,pysam
 import numpy as np
+import math
+import sys
 
 
 class BamFile:
@@ -17,7 +19,7 @@ class BamFile:
 			fp = bamFile+'.sorted'
 			subprocess.call(['samtools','sort',bamFile,'-o',bamFile+'.sorted'])
 		else: fp = bamFile
-	
+
 		if index: pysam.index(fp)
 
 		bamHandle = pysam.AlignmentFile(fp, "rb")
@@ -36,9 +38,9 @@ class BamContig:
 	name = None
 	length = None
 	stepper = 'nofilter'
-	
+
 	def __init__(self,bamHandle,contigName,contigLength,stepper='nofilter'):
-		
+
 		self.name = contigName
 		self.length = contigLength
 		self.bam_handle = bamHandle 
@@ -48,26 +50,24 @@ class BamContig:
 	def set_stepper(self,ns):
 		if ns in ['all','nofilter']: self.stepper = ns
 
-	
-	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get),mincov=1,minqual=20,fast=False):
+	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get),mincov=1,minqual=30,fast=False):
 
 		if (fast) : return self.fast_reference_free_consensus(consensus_rule)
 
-
 		consensus_positions = {}
-		
+
 		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01).items():
 			consensus_positions[pileupcolumn] = consensus_rule(position_data['base_freq'])
 			#print 'GAMMA'+str((pileupcolumn)-1)+'_'+repr(position_data['base_freq'])+'_'+repr(consensus_positions[pileupcolumn])
 
-		if len(consensus_positions) > 0 : 
+		if len(consensus_positions) > 0 :
 			self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else '-') for position in range(1,self.length+1)])
 		else:
 			self.consensus = None
-		
+
 		del consensus_positions
 		return self.consensus
-		
+
 
 	def fast_reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get)):
 
@@ -87,72 +87,90 @@ class BamContig:
 			self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else 'N') for position in range(0,self.length)])
 		else:
 			self.consensus = None
-		
+
 		del consensus_positions
 		return self.consensus
-		
 
-	def polymorphism_rate(self,mincov=1,minqual=0):
-		
-		#return float(sum([(1 if position_data['p'] < 0.05 else 0)  for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01).items()])) / self.length
-		poly_p_values = self.get_all_base_values("p",min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01)
-		if len(poly_p_values) > 0: 
-			return float(sum([(1 if p < 0.05 else 0) for p in poly_p_values])) / len(poly_p_values)
-		else: return np.nan
+	def polymorphism_rate(self,mincov=1,minqual=30,pvalue=0.05,precomputedBinomial=None):
+
+		base_values = self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=math.pow(10, (-minqual/10)),precomputedBinomial=precomputedBinomial)
+
+		rv={}
+		rv['covered_bases'] = len(base_values)
+		rv['polymorphic_bases'] = 0
+
+		if len(base_values) > 0:
+			pb=sum([(1 if info['p'] < pvalue else 0) for pox,info in base_values.items()])
+
+			rv['polymorphic_bases']= pb
+			rv['polymorphic_rate'] = float(pb)/float(len(base_values))
+
+			# If we have at least one polymorphic site
+			if pb > 0 :
+				rv['ratios'] = [info['ratio_max2all'] for pox,info in base_values.items() if info['p'] < pvalue]
+				rv['dominant_allele_distr_mean'] = np.mean(rv['ratios'])
+				rv['dominant_allele_distr_sd'] = np.std(rv['ratios'])
+
+				for i in [10,20,30,40,50,60,70,80,90,100]:
+					rv['dominant_allele_distr_perc_'+str(i)] = np.percentile(rv['ratios'],i)
+
+		return rv
 
 
-	def breadth_and_depth_of_coverage(self,mincov=1,minqual=0):
+	def breadth_and_depth_of_coverage(self,mincov=1,minqual=30):
 		coverage_positions = {}
 		ptl=0
-		
-		if minqual == 0:
-			for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):			
-				covfefe = len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
-				if covfefe >= mincov:
-					coverage_positions[pileupcolumn.pos] = covfefe
 
-
-		else:
-			for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):			
-				#print minqual,len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]), len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
-				covfefe = len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
-				if covfefe >= mincov:
-					coverage_positions[pileupcolumn.pos] = covfefe
-					
-		
-		breadth = float(len(coverage_positions.keys()))/self.length
-		avgdepth = np.mean(coverage_positions.values())
-		mediandepth = np.median(coverage_positions.values())
-
-		return (breadth,avgdepth,mediandepth)
-
-
-
-	def depth_of_coverage(self,mincov=1,minqual=0):
-		coverage_positions = {}
 		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
-			if pileupcolumn.n >= mincov: coverage_positions[pileupcolumn.pos] = len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
-		
-		return (np.mean(coverage_positions.values()),np.median(coverage_positions.values()))
+			#for each position
+			tCoverage = 0
+			for pileupread in pileupcolumn.pileups:
+				#for each base at the position
+
+				if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G'):
+					tCoverage +=1
 
 
-	def breadth_of_coverage(self,mincov=1,minqual=0):
-		coverage_positions = {}
-		ptl=0
-		
-		if minqual == 0:
-			for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):			
-				if len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]) >= mincov:
-					ptl += 1
+				if tCoverage >= mincov:
+					coverage_positions[pileupcolumn.pos] = tCoverage
 
-		else:
-			for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):			
-				#print minqual,len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]), len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
-				if len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]) >= mincov:
-					ptl += 1
-		
-		return float(ptl)/self.length
-     
+		if (len(coverage_positions.keys())) > 0:
+			breadth = float(len(coverage_positions.keys()))/self.length
+			avgdepth = np.mean(coverage_positions.values())
+			mediandepth = np.median(coverage_positions.values())
+
+			return (breadth,avgdepth,mediandepth)
+
+		else: return (np.nan,np.nan,np.nan)
+
+
+	def depth_of_coverage(self,mincov=1,minqual=30):
+		return self.breadth_and_depth_of_coverage(mincov,minqual)[1]
+		#coverage_positions = {}
+		#for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
+		#	if pileupcolumn.n >= mincov: coverage_positions[pileupcolumn.pos] = len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
+		#
+		#return (np.mean(coverage_positions.values()),np.median(coverage_positions.values()))
+
+
+	def breadth_of_coverage(self,mincov=1,minqual=30):
+		return self.breadth_and_depth_of_coverage(mincov,minqual)[0]
+		#coverage_positions = {}
+		#ptl=0
+		#
+		#if minqual == 0:
+		#	for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
+		#		if len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]) >= mincov:
+		#			ptl += 1
+
+		#else:
+		#	for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
+		#		#print minqual,len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]), len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
+		#		if len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]) >= mincov:
+		#			ptl += 1
+		#
+		#return float(ptl)/self.length
+
 	def plot_coverage(self,flavour='polar',path='./out.pdf',smooth=0,l_avoid=False,s_avoid=False,l_color='#000000',s_color='#000000'):
 		
 		import matplotlib
@@ -194,14 +212,20 @@ class BamContig:
 		plt.close()
 		
 #------------------------------------------------------------------------------	
-	def get_base_stats(self, min_read_depth=1, min_base_quality=20, error_rate=0.01):
+	def get_base_stats(self, min_read_depth=1, min_base_quality=30, error_rate=0.01,precomputedBinomial=None):
 		'''
 		get base frequencies and quality stats,
 		to use in get_all_base_values() and other functions
 		'''
 		from scipy import stats
 		from collections import defaultdict
+		import pickle,os
+
+
 		base_stats = defaultdict(dict)
+
+
+
 		ATCG=('A','T','C','G')
 		for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			base_freq = {'A':0,'T':0,'C':0,'G':0,'N':0}
@@ -224,7 +248,13 @@ class BamContig:
 			base_max=float(max([base_freq[b] for b in ATCG]))
 			if base_sum >= min_read_depth:
 				r = base_max / base_sum
-				p = stats.binom.cdf(base_max, base_sum, 1.0 - error_rate)
+				
+
+				if precomputedBinomial and os.path.isfile(precomputedBinomial) and base_max in precomputedBinomial and base_sum in precomputedBinomial[base_max]:
+					p = precomputedBinomial[base_max][base_sum]
+				else:
+					p = stats.binom.cdf(base_max, base_sum, 1.0 - error_rate)
+
 				pos=base_pileup.pos+1 # 1-based
 				base_stats[pos]['p']=p                 # quality measure
 				base_stats[pos]['ratio_max2all']=r     # dominant base versus others
@@ -243,20 +273,72 @@ class BamContig:
 #------------------------------------------------------------------------------
 
 
+def get_contig_list(inputList):
+	'''
+	get a contig list from file (if argument is a file, or list of comma-separated-elements) 
+	'''
+	import sys,os
+	from Bio import SeqIO
+
+	toList=[]
+
+	if os.path.isfile(inputList):
+		with open(inputList, "r") as infile:
+			for record in SeqIO.parse(infile, "fasta"):
+				toList.append(record.id)
+	else:
+		toList = inputList.split(',')
+	
+	return toList
+
 if __name__ == "__main__":
 
 	def poly_from_file(args):
+
+		import pandas as pd
+		if args.precomputed and os.path.isfile(args.precomputed):
+			import pickle
+			binomPrecomputed = pickle.load( open( args.precomputed, "rb" ))
+		else: binomPrecomputed=None
 
 		si = True if args.sortindex else False
 		mode = 'all' if args.f else 'nofilter'
 		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
 
-		print 'Contig\tPolymorphism Rate'
+		
+		get_contig_list(args.contig)
 
-		tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
+		outputDF = []
+		allRatios = []
+		allGenomeCol = {'referenceID': '-GENOME-','covered_bases':0,'polymorphic_bases':0,'polymorphic_rate':np.nan}
+		for element in [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj()):
+			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,precomputedBinomial=binomPrecomputed)
+			tld['referenceID'] = element.name
+		
+			allGenomeCol['covered_bases'] += tld['covered_bases']
+			allGenomeCol['polymorphic_bases'] += tld['polymorphic_bases'] 
+			if 'ratios' in tld:
+				allRatios = allRatios + tld['ratios']
+				del tld['ratios']
 
-		for element in tl:
-			print element.name+'\t'+str(element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov))
+			outputDF.append(tld)
+			del tld
+
+		if float(allGenomeCol['covered_bases']) > 0: 
+
+			allGenomeCol['polymorphic_rate'] = float(allGenomeCol['polymorphic_bases']) / float(allGenomeCol['covered_bases'])
+
+			allGenomeCol['dominant_allele_distr_mean'] = np.mean(allRatios)
+			allGenomeCol['dominant_allele_distr_sd'] = np.std(allRatios)
+			for i in [10,20,30,40,50,60,70,80,90,100]:
+				allGenomeCol['dominant_allele_distr_perc_'+str(i)] = np.percentile(allRatios,i)
+
+		outputDF.append(allGenomeCol)
+
+		pd.DataFrame.from_dict(outputDF).set_index('referenceID').to_csv(sys.stdout,sep='\t')
+
+		#print np.mean(k['polymorphic_rate'])
+
 
 
 
@@ -327,11 +409,9 @@ if __name__ == "__main__":
 	parser_breadth.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_breadth.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	parser_breadth.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
-	parser_breadth.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 0', type=int, default=0)
+	parser_breadth.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 30', type=int, default=30)
 	parser_breadth.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
 	
-
-
 	parser_breadth.set_defaults(func=bd_from_file)
 
 	parser_poly = subparsers.add_parser('poly',description="Reports the polymorpgic rate of each reference (polymorphic bases / total bases). Focuses only on covered regions (i.e. depth >= 1)")
@@ -341,9 +421,11 @@ if __name__ == "__main__":
 	parser_poly.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	
 	parser_poly.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
-	parser_poly.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 0', type=int, default=0)
+	parser_poly.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 30', type=int, default=30)
 	parser_poly.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
-	
+	parser_poly.add_argument('--precomputed', help='Path to pickled dictionary for precomputed probabilities of BINOM function')
+
+ 
 	
 	parser_poly.set_defaults(func=poly_from_file)
 
