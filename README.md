@@ -10,14 +10,13 @@
 * samtools (> 1.x)
 * numpy
 * pysam
-* matplotlib
-* seaborn
+* matplotlib and seaborn (subcommand `coverageplot`)
+* pandas
 
 
 **Note: CMSeq can be used [as python module](README_class.md) as well**
 
 ## Usage as Python Program ##
-
 
 ```
 usage: cmseq.py [-h] {bd,consensus,coverageplot} ...
@@ -40,9 +39,9 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   -c REFERENCE ID, --contig REFERENCE ID
-                        Gets the breadth and depth of a specific reference
-                        within a BAM Can be a string or a list of strings
-                        separated by comma.
+                        Focus on a subset of references in the BAM file. Can
+                        be a list of references separated by commas or a FASTA
+                        file (the IDs are used to subset)
   -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
                         fail (FQCFAIL) and duplicate (FDUP) are excluded. If
                         unset ALL reads are considered (bedtools genomecov
@@ -52,7 +51,7 @@ optional arguments:
                         considered
   --minqual MINQUAL     Minimum base quality. Bases with quality score lower
                         than this will be discarded. This is performed BEFORE
-                        --mincov. Default: 0
+                        --mincov. Default: 30
   --mincov MINCOV       Minimum position coverage to perform the polymorphism
                         calculation. Position with a lower depth of coverage
                         will be discarded (i.e. considered as zero-coverage
@@ -60,21 +59,33 @@ optional arguments:
                         Default: 1
 ```
 
-Examples:
+#### Examples: ####
+
+** Extract breadth and depth of coverage from a sorted and indexed bam file **
 
 ```
-# extract breadth and depth of coverage from a sorted and indexed bam file
 cmseq.py bd mybam.sorted.bam
+```
 
-# extract breadth and depth of coverage from an unsorted bam file
+** extract breadth and depth of coverage from an unsorted bam file **
+```
 cmseq.py bd --sortindex mybam.sorted.bam 
-
-# extract breadth and depth of coverage from an unsorted bam file, counting only bases with minimum quality of 30 and a minimum position-coverage of 10
-cmseq.py bd --sortindex --mincoverage 10 --minqual 30 mybam.sorted.bam
+```
 
 
-# extract breadth and depth of coverage from an unsorted bam file, only for reads aligning against genome_1 or genome_2
-cmseq.py bd --sortindex -c genome_1,genome_2 mybam.sorted.bam
+*** extract breadth and depth of coverage from an unsorted bam file, counting only bases with minimum quality of 20 and a minimum position-coverage of 10 ***
+```
+cmseq.py bd --sortindex --mincoverage 10 --minqual 20 mybam.unsorted.bam
+```
+
+*** extract breadth and depth of coverage from an unsorted bam file, only for reads aligning against genome_1 or genome_2 ***
+```
+cmseq.py bd --sortindex -c genome_1,genome_2 mybam.unsorted.bam
+```
+
+*** extract breadth and depth of coverage from a sorted bam file, only for reads aligning against contigs in MYFASTA.fasta ***
+```
+cmseq.py bd -c MYFASTA.fasta mybam.sorted.bam
 ```
 
 ### Subcommand `poly` ###
@@ -85,6 +96,7 @@ Provides the Polymorphic-rate of each reference in a sorted and indexed BAMFILE.
 ```
 usage: cmseq.py poly [-h] [-c REFERENCE ID] [-f] [--sortindex]
                      [--minlen MINLEN] [--minqual MINQUAL] [--mincov MINCOV]
+                     [--precomputed PRECOMPUTED]
                      BAMFILE
 
 Reports the polymorpgic rate of each reference (polymorphic bases / total
@@ -96,9 +108,9 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   -c REFERENCE ID, --contig REFERENCE ID
-                        Gets the polymorhic rate a specific reference
-                        within a BAM Can be a string or a list of strings
-                        separated by comma.
+                        Focus on a subset of references in the BAM file. Can
+                        be a list of references separated by commas or a FASTA
+                        file (the IDs are used to subset)
   -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
                         fail (FQCFAIL) and duplicate (FDUP) are excluded. If
                         unset ALL reads are considered (bedtools genomecov
@@ -108,31 +120,42 @@ optional arguments:
                         considered
   --minqual MINQUAL     Minimum base quality. Bases with quality score lower
                         than this will be discarded. This is performed BEFORE
-                        --mincov. Default: 0
+                        --mincov. Default: 30
   --mincov MINCOV       Minimum position coverage to perform the polymorphism
                         calculation. Position with a lower depth of coverage
                         will be discarded (i.e. considered as zero-coverage
                         positions). This is calculated AFTER --minqual.
                         Default: 1
+  --precomputed PRECOMPUTED
+                        Path to a pickled dictionary containing the
+                        precomputed probabilities of scipy.stats.binom
+                        function.
 ```
 
-Examples:
+#### Examples ####
 
+** extract polymorphic rate from a sorted and indexed bam file **
 ```
-# extract polymorphic rate from a sorted and indexed bam file
 cmseq.py poly mybam.sorted.bam
-
-# extract polymorphic rate from an unsorted bam file
+```
+** extract polymorphic rate from an unsorted bam file **
+```
 cmseq.py poly --sortindex mybam.sorted.bam 
-
-# extract polymorphic rate from an unsorted bam file, counting only bases with minimum quality of 30 and minimum position-coverage of 10
-cmseq.py poly --sortindex --mincoverage 10 --minqual 30 mybam.sorted.bam
-
-
-# extract polymorphic rate from an unsorted bam file, only for reads aligning against genome_1 or genome_2
-cmseq.py poly --sortindex -c genome_1,genome_2 mybam.sorted.bam
+```
+** extract polymorphic rate from an unsorted bam file, counting only bases with minimum quality of 30 and minimum position-coverage of 10 **
+```
+cmseq.py poly --sortindex --mincoverage 10 --minqual 30 mybam.unsorted.bam
 ```
 
+** extract polymorphic rate from an unsorted bam file, only for reads aligning against genome_1 or genome_2 **
+```
+cmseq.py poly --sortindex -c genome_1,genome_2 mybam.unsorted.bam
+```
+
+** extract polymorphic rate using a precomputed binomial probability table **
+```
+cmseq.py poly --precomputed precomputed_minqual30.p --minqual 30 mybam.sorted.bam
+```
 
 ### Subcommand `consensus` ###
 
@@ -174,21 +197,23 @@ optional arguments:
 
 ```
 
-Examples:
+#### Examples ####
 
+
+** extract the consensus from all the references from a sorted and indexed BAM file, in FASTA format **
 ```
-# extract the consensus from all the references from a sorted and indexed BAM file, in FASTA format
 cmseq.py consensus mybam.sorted.bam
-
-# extract the consensus from all the references from an unsorted BAM file, in FASTA format
+```
+** extract the consensus from all the references from an unsorted BAM file, in FASTA format **
+```
 cmseq.py consensus --sortindex mybam.sorted.bam 
-
-# extract the consensus of genome_1 and genome_2 from a BAM file. Positions with coverage lower than 5 are ignored (- is reported instead of base-call).
-
+```
+** extract the consensus of genome_1 and genome_2 from a BAM file. Positions with coverage lower than 5 are ignored (- is reported instead of base-call).**
+```
 cmseq.py consensus --mincov 5 -c genome_1,genome_2 mybam.sorted.bam
-
-# extract the consensus of genome_1 and genome_2 from a BAM file. Positions with coverage lower than 5 "high quality" bases are ignored (- is reported instead of base-call).
-
+```
+** extract the consensus of genome_1 and genome_2 from a BAM file. Positions with coverage lower than 5 "high quality" bases are ignored (- is reported instead of base-call).**
+```
 cmseq.py consensus --mincov 5 --minqual 30 -c genome_1,genome_2 mybam.sorted.bam
 ```
 
