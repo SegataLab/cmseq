@@ -96,14 +96,14 @@ class BamContig:
 		base_values = self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=math.pow(10, (-minqual/10)),precomputedBinomial=precomputedBinomial)
 
 		rv={}
-		rv['covered_bases'] = len(base_values)
-		rv['polymorphic_bases'] = 0
+		rv['total_covered_bases'] = len(base_values)
+		rv['total_polymorphic_bases'] = 0
 
 		if len(base_values) > 0:
 			pb=sum([(1 if info['p'] < pvalue else 0) for pox,info in base_values.items()])
 
-			rv['polymorphic_bases']= pb
-			rv['polymorphic_rate'] = float(pb)/float(len(base_values))
+			rv['total_polymorphic_bases']= pb
+			rv['total_polymorphic_rate'] = float(pb)/float(len(base_values))
 
 			# If we have at least one polymorphic site
 			if pb > 0 :
@@ -111,7 +111,7 @@ class BamContig:
 				rv['dominant_allele_distr_mean'] = np.mean(rv['ratios'])
 				rv['dominant_allele_distr_sd'] = np.std(rv['ratios'])
 
-				for i in [10,20,30,40,50,60,70,80,90,100]:
+				for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
 					rv['dominant_allele_distr_perc_'+str(i)] = np.percentile(rv['ratios'],i)
 
 		return rv
@@ -250,7 +250,7 @@ class BamContig:
 				r = base_max / base_sum
 				
 
-				if precomputedBinomial and os.path.isfile(precomputedBinomial) and base_max in precomputedBinomial and base_sum in precomputedBinomial[base_max]:
+				if precomputedBinomial and base_max in precomputedBinomial and base_sum in precomputedBinomial[base_max]:
 					p = precomputedBinomial[base_max][base_sum]
 				else:
 					p = stats.binom.cdf(base_max, base_sum, 1.0 - error_rate)
@@ -308,13 +308,13 @@ if __name__ == "__main__":
 
 		outputDF = []
 		allRatios = []
-		allGenomeCol = {'referenceID': '-GENOME-','covered_bases':0,'polymorphic_bases':0,'polymorphic_rate':np.nan}
+		allGenomeCol = {'referenceID': '-GENOME-','total_covered_bases':0,'total_polymorphic_bases':0,'total_polymorphic_rate':np.nan}
 		for element in [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj()):
 			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
 		
-			allGenomeCol['covered_bases'] += tld['covered_bases']
-			allGenomeCol['polymorphic_bases'] += tld['polymorphic_bases'] 
+			allGenomeCol['total_covered_bases'] += tld['total_covered_bases']
+			allGenomeCol['total_polymorphic_bases'] += tld['total_polymorphic_bases'] 
 			if 'ratios' in tld:
 				allRatios = allRatios + tld['ratios']
 				del tld['ratios']
@@ -322,9 +322,9 @@ if __name__ == "__main__":
 			outputDF.append(tld)
 			del tld
 
-		if float(allGenomeCol['covered_bases']) > 0: 
+		if float(allGenomeCol['total_covered_bases']) > 0: 
 
-			allGenomeCol['polymorphic_rate'] = float(allGenomeCol['polymorphic_bases']) / float(allGenomeCol['covered_bases'])
+			allGenomeCol['total_polymorphic_rate'] = float(allGenomeCol['total_polymorphic_bases']) / float(allGenomeCol['total_covered_bases'])
 
 			allGenomeCol['dominant_allele_distr_mean'] = np.mean(allRatios)
 			allGenomeCol['dominant_allele_distr_sd'] = np.std(allRatios)
@@ -404,7 +404,7 @@ if __name__ == "__main__":
 	subparsers = parser.add_subparsers(title='subcommands',description='valid subcommands')
 	parser_breadth = subparsers.add_parser('bd',description="calculate the Breadth and Depth of coverage of BAMFILE.")
 	parser_breadth.add_argument('BAMFILE', help='The file on which to operate')
-	parser_breadth.add_argument('-c','--contig', help='Gets the breadth and depth of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
+	parser_breadth.add_argument('-c','--contig', help='Focus on a subset of references in the BAM file. Can be a list of references separated by commas or a FASTA file (the IDs are used to subset)', metavar="REFERENCE ID" ,default=None)
 	parser_breadth.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_breadth.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	parser_breadth.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
@@ -415,14 +415,14 @@ if __name__ == "__main__":
 
 	parser_poly = subparsers.add_parser('poly',description="Reports the polymorpgic rate of each reference (polymorphic bases / total bases). Focuses only on covered regions (i.e. depth >= 1)")
 	parser_poly.add_argument('BAMFILE', help='The file on which to operate')
-	parser_poly.add_argument('-c','--contig', help='Gets the polymorphic rate _of a specific reference within a BAM Can be a string or a list of strings separated by comma.', metavar="REFERENCE ID" ,default=None)
+	parser_poly.add_argument('-c','--contig', help='Focus on a subset of references in the BAM file. Can be a list of references separated by commas or a FASTA file (the IDs are used to subset)', metavar="REFERENCE ID" ,default=None)
 	parser_poly.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_poly.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	
 	parser_poly.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
 	parser_poly.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 30', type=int, default=30)
 	parser_poly.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
-	parser_poly.add_argument('--precomputed', help='Path to pickled dictionary for precomputed probabilities of BINOM function')
+	parser_poly.add_argument('--precomputed', help='Path to a pickled dictionary containing the precomputed probabilities of scipy.stats.binom function.')
 
  
 	
@@ -430,7 +430,7 @@ if __name__ == "__main__":
 
 	parser_consensus = subparsers.add_parser('consensus',description="outputs the consensus in FASTA format. Non covered positions (or quality-trimmed positions) are reported as a dashes: -")
 	parser_consensus.add_argument('BAMFILE', help='The file on which to operate')
-	parser_consensus.add_argument('-c','--contig', help='Gets the breadth and depth of a specific reference within a BAM Can be a string or a list of strings separated by comma.',default=None)
+	parser_consensus.add_argument('-c','--contig', help='Focus on a subset of references in the BAM file. Can be a list of references separated by commas or a FASTA file (the IDs are used to subset)', metavar="REFERENCE ID" ,default=None)
 	parser_consensus.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_consensus.add_argument('--sortindex', help='Sort and index the file',action='store_true')
 	parser_consensus.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 0', type=int, default=0)
