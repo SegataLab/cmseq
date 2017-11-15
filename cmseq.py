@@ -328,7 +328,7 @@ if __name__ == "__main__":
 
 			allGenomeCol['dominant_allele_distr_mean'] = np.mean(allRatios)
 			allGenomeCol['dominant_allele_distr_sd'] = np.std(allRatios)
-			for i in [10,20,30,40,50,60,70,80,90,100]:
+			for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
 				allGenomeCol['dominant_allele_distr_perc_'+str(i)] = np.percentile(allRatios,i)
 
 		outputDF.append(allGenomeCol)
