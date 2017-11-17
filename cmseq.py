@@ -91,9 +91,55 @@ class BamContig:
 		del consensus_positions
 		return self.consensus
 
+	def baseline_PSR(self,mincov=1,minqual=30,pvalue=0.05,binom=None):
+
+		from scipy import stats
+		error_rate=math.pow(10, (float(-minqual)/float(10)))
+
+		polymorphic_empirical_loci = 0
+		depthsList = self.get_all_base_values('base_cov', min_base_quality=minqual,min_read_depth=mincov)
+		for depth in depthsList:
+			#print "base cover somewhere is", depth
+			
+			
+			base_max = 0
+			for x in range(0,depth):
+
+				loc_hun = stats.binom.rvs(1,error_rate)
+				if loc_hun == 0:
+					base_max+=1
+ 
+			if binom and base_max in binom and depth in binom[base_max]:
+					p = binom[base_max][depth]
+			else:
+					p = stats.binom.cdf(base_max, depth, 1.0 - error_rate)
+
+			
+			if p < pvalue:
+				polymorphic_empirical_loci+=1
+				#print "Binomial: cdf(",base_max,",",depth,",",1.0-error_rate,") p  = ", p,'\tPOLY'
+			#else: print "Binomial: cdf(",base_max,",",depth,",",1.0-error_rate,") p  = ", p,'\tDUMB'
+
+
+		#print "PSR: ", polymorphic_empirical_loci
+		PSR = float(polymorphic_empirical_loci) / float(len( depthsList))
+
+		return PSR
+
+#		p = stats.binom.cdf(base_max, base_sum, 1.0 - error_rate)
+
+		# Determine unique coverage values over entire contig
+		## Do all of the following 10000 times
+		# For each unique value:
+		### Use Bernoulli / Binomial test to determine p-value.
+		### Return a PSR estimate over the unique set of covered bases.
+		## Compare empirical distribution function of PSR under the null hypothesis that there are not more than one strain.
+
+
+
 	def polymorphism_rate(self,mincov=1,minqual=30,pvalue=0.05,precomputedBinomial=None):
 
-		base_values = self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=math.pow(10, (-minqual/10)),precomputedBinomial=precomputedBinomial)
+		base_values = self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=math.pow(10, (float(-minqual)/float(10))),precomputedBinomial=precomputedBinomial)
 
 		rv={}
 		rv['total_covered_bases'] = len(base_values)
@@ -246,6 +292,7 @@ class BamContig:
 
 			base_sum=sum([base_freq[b] for b in ATCG]) 
 			base_max=float(max([base_freq[b] for b in ATCG]))
+
 			if base_sum >= min_read_depth:
 				r = base_max / base_sum
 				
@@ -310,6 +357,16 @@ if __name__ == "__main__":
 		allRatios = []
 		allGenomeCol = {'referenceID': '-GENOME-','total_covered_bases':0,'total_polymorphic_bases':0,'total_polymorphic_rate':np.nan}
 		for element in [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj()):
+			
+			#PSR_LIST =[]
+			#for k in range(0,1000):
+			#	
+			#	ee=element.baseline_PSR(binom=binomPrecomputed)
+			#	print k,ee
+			#	PSR_LIST.append(ee)
+			#
+			#print PSR_LIST 
+
 			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
 		
