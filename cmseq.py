@@ -6,6 +6,7 @@ import math
 import sys
 
 
+
 class BamFile:
 	bam_handle = None
 	contigs = {}
@@ -106,13 +107,12 @@ class BamContig:
 					p = stats.binom.cdf(base_max, depth, 1.0 - error_rate)
 			if p < pvalue:
 				polymorphic_empirical_loci+=1
-				#print "Binomial: cdf(",base_max,",",depth,",",1.0-error_rate,") p  = ", p,'\tPOLY'
-			#else: print "Binomial: cdf(",base_max,",",depth,",",1.0-error_rate,") p  = ", p,'\tDUMB'
+					#print "Binomial: cdf(",base_max,",",depth,",",1.0-error_rate,") p  = ", p,'\tPOLY'
+				#else: print "Binomial: cdf(",base_max,",",depth,",",1.0-error_rate,") p  = ", p,'\tDUMB'
 
 
 		#print "PSR: ", polymorphic_empirical_loci
-		PSR = float(polymorphic_empirical_loci) / float(len( depthsList))
-
+		PSR = float(polymorphic_empirical_loci) / float(len(depthsList))
 		return PSR
 
 #		p = stats.binom.cdf(base_max, base_sum, 1.0 - error_rate)
@@ -348,12 +348,9 @@ if __name__ == "__main__":
 		for element in [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj()):
 			
 			PSR_LIST =[]
-			for k in range(0, 100):
+			for k in range(0, 20):
 				ee=element.baseline_PSR(binom=binomPrecomputed)
-				print k,ee
 				PSR_LIST.append(ee)
-			
-			print PSR_LIST 
 
 			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
@@ -363,6 +360,9 @@ if __name__ == "__main__":
 			if 'ratios' in tld:
 				allRatios = allRatios + tld['ratios']
 				del tld['ratios']
+
+			for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
+				tld['estimated_baseline_PSR_distr_perc'+str(i)] = np.percentile(PSR_LIST,i)
 
 			outputDF.append(tld)
 			del tld
@@ -375,6 +375,7 @@ if __name__ == "__main__":
 			allGenomeCol['dominant_allele_distr_sd'] = np.std(allRatios)
 			for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
 				allGenomeCol['dominant_allele_distr_perc_'+str(i)] = np.percentile(allRatios,i)
+
 
 		outputDF.append(allGenomeCol)
 
