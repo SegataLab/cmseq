@@ -92,7 +92,6 @@ class BamContig:
 		return self.consensus
 
 	def baseline_PSR(self,mincov=1,minqual=30,pvalue=0.05,binom=None):
-
 		from scipy import stats
 		error_rate=math.pow(10, (float(-minqual)/float(10)))
 
@@ -100,21 +99,11 @@ class BamContig:
 		depthsList = self.get_all_base_values('base_cov', min_base_quality=minqual,min_read_depth=mincov)
 		for depth in depthsList:
 			#print "base cover somewhere is", depth
-			
-			
-			base_max = 0
-			for x in range(0,depth):
-
-				loc_hun = stats.binom.rvs(1,error_rate)
-				if loc_hun == 0:
-					base_max+=1
- 
+			base_max = sum(stats.bernoulli.rvs(1-error_rate, size=depth))
 			if binom and base_max in binom and depth in binom[base_max]:
 					p = binom[base_max][depth]
 			else:
 					p = stats.binom.cdf(base_max, depth, 1.0 - error_rate)
-
-			
 			if p < pvalue:
 				polymorphic_empirical_loci+=1
 				#print "Binomial: cdf(",base_max,",",depth,",",1.0-error_rate,") p  = ", p,'\tPOLY'
@@ -358,14 +347,13 @@ if __name__ == "__main__":
 		allGenomeCol = {'referenceID': '-GENOME-','total_covered_bases':0,'total_polymorphic_bases':0,'total_polymorphic_rate':np.nan}
 		for element in [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj()):
 			
-			#PSR_LIST =[]
-			#for k in range(0,1000):
-			#	
-			#	ee=element.baseline_PSR(binom=binomPrecomputed)
-			#	print k,ee
-			#	PSR_LIST.append(ee)
-			#
-			#print PSR_LIST 
+			PSR_LIST =[]
+			for k in range(0, 100):
+				ee=element.baseline_PSR(binom=binomPrecomputed)
+				print k,ee
+				PSR_LIST.append(ee)
+			
+			print PSR_LIST 
 
 			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
