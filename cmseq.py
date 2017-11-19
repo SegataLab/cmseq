@@ -349,7 +349,7 @@ if __name__ == "__main__":
 			
 			PSR_LIST =[]
 			for k in range(0, 20):
-				ee=element.baseline_PSR(binom=binomPrecomputed)
+				ee=element.baseline_PSR(minqual=args.minqual,mincov=args.mincov,binom=binomPrecomputed)
 				PSR_LIST.append(ee)
 
 			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,precomputedBinomial=binomPrecomputed)
