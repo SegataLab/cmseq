@@ -51,7 +51,7 @@ class BamContig:
 	def set_stepper(self,ns):
 		if ns in ['all','nofilter']: self.stepper = ns
 
-	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get),mincov=1,minqual=30,fast=False):
+	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get),mincov=10,minqual=30,fast=False):
 
 		if (fast) : return self.fast_reference_free_consensus(consensus_rule)
 
@@ -92,14 +92,14 @@ class BamContig:
 		del consensus_positions
 		return self.consensus
 
-	def baseline_PSR(self,mincov=1,minqual=30,pvalue=0.05,binom=None):
+	def baseline_PSR(self,mincov=10,minqual=30,pvalue=0.01,binom=None):
 		from scipy import stats
 		error_rate=math.pow(10, (float(-minqual)/float(10)))
 
 		polymorphic_empirical_loci = 0
 		depthsList = self.get_all_base_values('base_cov', min_base_quality=minqual,min_read_depth=mincov)
+
 		for depth in depthsList:
-			#print "base cover somewhere is", depth
 			base_max = sum(stats.bernoulli.rvs(1-error_rate, size=depth))
 			if binom and base_max in binom and depth in binom[base_max]:
 					p = binom[base_max][depth]
@@ -107,11 +107,6 @@ class BamContig:
 					p = stats.binom.cdf(base_max, depth, 1.0 - error_rate)
 			if p < pvalue:
 				polymorphic_empirical_loci+=1
-					#print "Binomial: cdf(",base_max,",",depth,",",1.0-error_rate,") p  = ", p,'\tPOLY'
-				#else: print "Binomial: cdf(",base_max,",",depth,",",1.0-error_rate,") p  = ", p,'\tDUMB'
-
-
-		#print "PSR: ", polymorphic_empirical_loci
 		PSR = float(polymorphic_empirical_loci) / float(len(depthsList))
 		return PSR
 
@@ -126,7 +121,7 @@ class BamContig:
 
 
 
-	def polymorphism_rate(self,mincov=1,minqual=30,pvalue=0.05,precomputedBinomial=None):
+	def polymorphism_rate(self,mincov=10,minqual=30,pvalue=0.01,precomputedBinomial=None):
 
 		base_values = self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=math.pow(10, (float(-minqual)/float(10))),precomputedBinomial=precomputedBinomial)
 
@@ -152,7 +147,7 @@ class BamContig:
 		return rv
 
 
-	def breadth_and_depth_of_coverage(self,mincov=1,minqual=30):
+	def breadth_and_depth_of_coverage(self,mincov=10,minqual=30):
 		coverage_positions = {}
 		ptl=0
 
@@ -179,7 +174,7 @@ class BamContig:
 		else: return (np.nan,np.nan,np.nan)
 
 
-	def depth_of_coverage(self,mincov=1,minqual=30):
+	def depth_of_coverage(self,mincov=10,minqual=30):
 		return self.breadth_and_depth_of_coverage(mincov,minqual)[1]
 		#coverage_positions = {}
 		#for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
@@ -188,7 +183,7 @@ class BamContig:
 		#return (np.mean(coverage_positions.values()),np.median(coverage_positions.values()))
 
 
-	def breadth_of_coverage(self,mincov=1,minqual=30):
+	def breadth_of_coverage(self,mincov=10,minqual=30):
 		return self.breadth_and_depth_of_coverage(mincov,minqual)[0]
 		#coverage_positions = {}
 		#ptl=0
@@ -284,8 +279,6 @@ class BamContig:
 
 			if base_sum >= min_read_depth:
 				r = base_max / base_sum
-				
-
 				if precomputedBinomial and base_max in precomputedBinomial and base_sum in precomputedBinomial[base_max]:
 					p = precomputedBinomial[base_max][base_sum]
 				else:
@@ -305,7 +298,7 @@ class BamContig:
 		p_all = a.get_contig_by_label('CONTIGNAME').get_all_base_values('p', min_base_quality=30)
 		'''
 		base_stats = self.get_base_stats(*f_args, **f_kwargs)
-		return [ base_stats[k].get(stats_value, 'NaN') for k in base_stats]
+		return [base_stats[k].get(stats_value, 'NaN') for k in base_stats]
 #------------------------------------------------------------------------------
 
 
@@ -344,13 +337,17 @@ if __name__ == "__main__":
 
 		outputDF = []
 		allRatios = []
+		PSR_estimates = []
 		allGenomeCol = {'referenceID': '-GENOME-','total_covered_bases':0,'total_polymorphic_bases':0,'total_polymorphic_rate':np.nan}
 		for element in [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj()):
 			
-			PSR_LIST =[]
-			for k in range(0, 20):
+			PSR_LIST = []
+			for k in range(0, 5):
 				ee=element.baseline_PSR(minqual=args.minqual,mincov=args.mincov,binom=binomPrecomputed)
 				PSR_LIST.append(ee)
+
+			# PSR_estimates is a list of lists, with each internal list being the monte-carlo estimates of PSR for each contig.
+			PSR_estimates.append(PSR_LIST)
 
 			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
@@ -367,6 +364,16 @@ if __name__ == "__main__":
 			outputDF.append(tld)
 			del tld
 
+		# In order to compute the genome-wide baseline PSR distribution, for each iteration compute the weighted averages of the PSR estimates over all contigs.
+		genome_PSR_distr = []
+		for iteration in range(len(PSR_estimates[0])):
+			tmp = []
+			for contig in range(len(PSR_estimates)):
+				tmp.append(PSR_estimates[contig][iteration])
+			w_av = np.average(tmp, weights = [x['total_covered_bases'] for x in outputDF])
+			genome_PSR_distr.append(w_av)
+
+
 		if float(allGenomeCol['total_covered_bases']) > 0: 
 
 			allGenomeCol['total_polymorphic_rate'] = float(allGenomeCol['total_polymorphic_bases']) / float(allGenomeCol['total_covered_bases'])
@@ -375,6 +382,8 @@ if __name__ == "__main__":
 			allGenomeCol['dominant_allele_distr_sd'] = np.std(allRatios)
 			for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
 				allGenomeCol['dominant_allele_distr_perc_'+str(i)] = np.percentile(allRatios,i)
+			for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
+				allGenomeCol['estimated_baseline_PSR_distr_perc'+str(i)] = np.percentile(genome_PSR_distr,i)
 
 
 		outputDF.append(allGenomeCol)
