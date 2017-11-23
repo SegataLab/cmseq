@@ -57,7 +57,7 @@ class BamContig:
 
 		consensus_positions = {}
 
-		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=0.01).items():
+		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=0.001).items():
 			consensus_positions[pileupcolumn] = consensus_rule(position_data['base_freq'])
 			#print 'GAMMA'+str((pileupcolumn)-1)+'_'+repr(position_data['base_freq'])+'_'+repr(consensus_positions[pileupcolumn])
 
@@ -92,52 +92,52 @@ class BamContig:
 		del consensus_positions
 		return self.consensus
 
-	def baseline_PSR(self,mincov=10,minqual=30,pvalue=0.01,binom=None):
-		from scipy import stats
-		error_rate=math.pow(10, (float(-minqual)/float(10)))
+	def baseline_PSR(self,mincov=10,minqual=30,pvalue=0.01,error_rate=0.001,dominant_frq_thrsh=0.8,binom=None):
+		# This function estimates the polymorphic site rate over the input contig assuming that there are no truely polymorphic sites
+		# (Meaning that all observed polymorphisms are due to random sequencing error). The test also puts a threshold on the "dominance"
+		# of the allele, meaning that it only reports a polymorphic base if the binomial test indicates significance AND the base is sufficiently
+		# dominated by the dominant base. Defaults to 0.8 dominance (dominant / all).
+		from scipy import stats 
 
 		polymorphic_empirical_loci = 0
+
+		# Get coverage as well as values of contig
 		depthsList = self.get_all_base_values('base_cov', min_base_quality=minqual,min_read_depth=mincov)
 
-		for depth in depthsList:
+		# Also get dominant allele frequency of contig
+		dominantFreq = self.get_all_base_values('ratio_max2all', min_base_quality=minqual,min_read_depth=mincov)
+
+		# For each position, draw depth-times from bernoulli with success rate 1-error_rate. 
+		# Determine significance based on a binomial test, as you would in the regular test for polymorphism.
+		for depth, da_freq in zip(depthsList, dominantFreq):
 			base_max = sum(stats.bernoulli.rvs(1-error_rate, size=depth))
 			if binom and base_max in binom and depth in binom[base_max]:
 					p = binom[base_max][depth]
 			else:
-					p = stats.binom.cdf(base_max, depth, 1.0 - error_rate)
-			if p < pvalue:
+					p = stats.binom.cdf(base_max, depth,1.0-error_rate)
+			if p < pvalue and da_freq > dominant_frq_thrsh:
 				polymorphic_empirical_loci+=1
 		PSR = float(polymorphic_empirical_loci) / float(len(depthsList))
 		return PSR
 
-#		p = stats.binom.cdf(base_max, base_sum, 1.0 - error_rate)
 
-		# Determine unique coverage values over entire contig
-		## Do all of the following 10000 times
-		# For each unique value:
-		### Use Bernoulli / Binomial test to determine p-value.
-		### Return a PSR estimate over the unique set of covered bases.
-		## Compare empirical distribution function of PSR under the null hypothesis that there are not more than one strain.
+	def polymorphism_rate(self,mincov=10,minqual=30,pvalue=0.01,error_rate=0.001,dominant_frq_thrsh=0.8,precomputedBinomial=None):
 
-
-
-	def polymorphism_rate(self,mincov=10,minqual=30,pvalue=0.01,precomputedBinomial=None):
-
-		base_values = self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual, error_rate=math.pow(10, (float(-minqual)/float(10))),precomputedBinomial=precomputedBinomial)
+		base_values = self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,error_rate=error_rate,precomputedBinomial=precomputedBinomial)
 
 		rv={}
 		rv['total_covered_bases'] = len(base_values)
 		rv['total_polymorphic_bases'] = 0
 
 		if len(base_values) > 0:
-			pb=sum([(1 if info['p'] < pvalue else 0) for pox,info in base_values.items()])
+			pb=sum([(1 if (info['p'] < pvalue and info['ratio_max2all'] > dominant_frq_thrsh) else 0) for pox, info in base_values.items()])
 
 			rv['total_polymorphic_bases']= pb
 			rv['total_polymorphic_rate'] = float(pb)/float(len(base_values))
 
 			# If we have at least one polymorphic site
 			if pb > 0 :
-				rv['ratios'] = [info['ratio_max2all'] for pox,info in base_values.items() if info['p'] < pvalue]
+				rv['ratios'] = [info['ratio_max2all'] for pox,info in base_values.items() if (info['p'] < pvalue and info['ratio_max2all'] > dominant_frq_thrsh)]
 				rv['dominant_allele_distr_mean'] = np.mean(rv['ratios'])
 				rv['dominant_allele_distr_sd'] = np.std(rv['ratios'])
 
@@ -242,7 +242,7 @@ class BamContig:
 		plt.close()
 		
 #------------------------------------------------------------------------------	
-	def get_base_stats(self, min_read_depth=1, min_base_quality=30, error_rate=0.01,precomputedBinomial=None):
+	def get_base_stats(self, min_read_depth=10, min_base_quality=30, error_rate=0.001,dominant_frq_thrsh=0.8,precomputedBinomial=None):
 		'''
 		get base frequencies and quality stats,
 		to use in get_all_base_values() and other functions
@@ -251,10 +251,7 @@ class BamContig:
 		from collections import defaultdict
 		import pickle,os
 
-
 		base_stats = defaultdict(dict)
-
-
 
 		ATCG=('A','T','C','G')
 		for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper):
@@ -342,14 +339,14 @@ if __name__ == "__main__":
 		for element in [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj()):
 			
 			PSR_LIST = []
-			for k in range(0, 5):
-				ee=element.baseline_PSR(minqual=args.minqual,mincov=args.mincov,binom=binomPrecomputed)
+			for k in range(0, 10):
+				ee=element.baseline_PSR(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,binom=binomPrecomputed)
 				PSR_LIST.append(ee)
 
-			# PSR_estimates is a list of lists, with each internal list being the monte-carlo estimates of PSR for each contig.
+			# PSR_estimates is a list of lists, with each internal list containing the monte-carlo estimates of PSR for each contig.
 			PSR_estimates.append(PSR_LIST)
 
-			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,precomputedBinomial=binomPrecomputed)
+			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
 		
 			allGenomeCol['total_covered_bases'] += tld['total_covered_bases']
@@ -476,11 +473,13 @@ if __name__ == "__main__":
 	
 	parser_poly.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
 	parser_poly.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 30', type=int, default=30)
-	parser_poly.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
+	parser_poly.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=10)
+	parser_poly.add_argument('--seq_err', help='Sequencing error rate.', type=float, default=0.001)
+	parser_poly.add_argument('--dominant_frq_thrsh', help='Cutoff for degree of `allele dominance` for a position to be considered polymorphic.', type=float, default=0.8)
+
+
 	parser_poly.add_argument('--precomputed', help='Path to a pickled dictionary containing the precomputed probabilities of scipy.stats.binom function.')
 
- 
-	
 	parser_poly.set_defaults(func=poly_from_file)
 
 	parser_consensus = subparsers.add_parser('consensus',description="outputs the consensus in FASTA format. Non covered positions (or quality-trimmed positions) are reported as a dashes: -")
@@ -488,8 +487,8 @@ if __name__ == "__main__":
 	parser_consensus.add_argument('-c','--contig', help='Focus on a subset of references in the BAM file. Can be a list of references separated by commas or a FASTA file (the IDs are used to subset)', metavar="REFERENCE ID" ,default=None)
 	parser_consensus.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
 	parser_consensus.add_argument('--sortindex', help='Sort and index the file',action='store_true')
-	parser_consensus.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 0', type=int, default=0)
-	parser_consensus.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
+	parser_consensus.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 0', type=int, default=30)
+	parser_consensus.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=10)
 	parser_consensus.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
 	parser_consensus.add_argument('--fast', help='Fast version (does not account for polymorphism)',action='store_true')
 
