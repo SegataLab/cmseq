@@ -95,7 +95,7 @@ class BamContig:
 	def baseline_PSR(self,mincov=10,minqual=30,pvalue=0.01,error_rate=0.001,dominant_frq_thrsh=0.8,binom=None):
 		# This function estimates the polymorphic site rate over the input contig assuming that there are no truely polymorphic sites
 		# (Meaning that all observed polymorphisms are due to random sequencing error). The test also puts a threshold on the "dominance"
-		# of the allele, meaning that it only reports a polymorphic base if the binomial test indicates significance AND the base is sufficiently
+		# of the allele, meaning that it only reports a polymorphic base if the binomial test indicates significance AND the base is NOT sufficiently
 		# dominated by the dominant base. Defaults to 0.8 dominance (dominant / all).
 		from scipy import stats 
 
@@ -115,7 +115,7 @@ class BamContig:
 					p = binom[base_max][depth]
 			else:
 					p = stats.binom.cdf(base_max, depth,1.0-error_rate)
-			if p < pvalue and da_freq > dominant_frq_thrsh:
+			if p < pvalue and da_freq < dominant_frq_thrsh:
 				polymorphic_empirical_loci+=1
 		PSR = float(polymorphic_empirical_loci) / float(len(depthsList))
 		return PSR
@@ -130,14 +130,14 @@ class BamContig:
 		rv['total_polymorphic_bases'] = 0
 
 		if len(base_values) > 0:
-			pb=sum([(1 if (info['p'] < pvalue and info['ratio_max2all'] > dominant_frq_thrsh) else 0) for pox, info in base_values.items()])
+			pb=sum([(1 if (info['p'] < pvalue and info['ratio_max2all'] < dominant_frq_thrsh) else 0) for pox, info in base_values.items()])
 
 			rv['total_polymorphic_bases']= pb
 			rv['total_polymorphic_rate'] = float(pb)/float(len(base_values))
 
 			# If we have at least one polymorphic site
 			if pb > 0 :
-				rv['ratios'] = [info['ratio_max2all'] for pox,info in base_values.items() if (info['p'] < pvalue and info['ratio_max2all'] > dominant_frq_thrsh)]
+				rv['ratios'] = [info['ratio_max2all'] for pox,info in base_values.items() if (info['p'] < pvalue and info['ratio_max2all'] < dominant_frq_thrsh)]
 				rv['dominant_allele_distr_mean'] = np.mean(rv['ratios'])
 				rv['dominant_allele_distr_sd'] = np.std(rv['ratios'])
 
