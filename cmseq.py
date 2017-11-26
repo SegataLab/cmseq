@@ -338,15 +338,15 @@ if __name__ == "__main__":
 		allGenomeCol = {'referenceID': '-GENOME-','total_covered_bases':0,'total_polymorphic_bases':0,'total_polymorphic_rate':np.nan}
 		for element in [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj()):
 			
-			PSR_LIST = []
-			for k in range(0, 10):
-				ee=element.baseline_PSR(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,binom=binomPrecomputed)
-				PSR_LIST.append(ee)
+			# PSR_LIST = []
+			# for k in range(0, 10):
+			# 	ee=element.baseline_PSR(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,dominant_frq_thrsh=args.dominant_frq_thrsh,binom=binomPrecomputed)
+			# 	PSR_LIST.append(ee)
 
 			# PSR_estimates is a list of lists, with each internal list containing the monte-carlo estimates of PSR for each contig.
-			PSR_estimates.append(PSR_LIST)
+			# PSR_estimates.append(PSR_LIST)
 
-			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,precomputedBinomial=binomPrecomputed)
+			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,dominant_frq_thrsh=args.dominant_frq_thrsh, precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
 		
 			allGenomeCol['total_covered_bases'] += tld['total_covered_bases']
@@ -355,20 +355,20 @@ if __name__ == "__main__":
 				allRatios = allRatios + tld['ratios']
 				del tld['ratios']
 
-			for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
-				tld['estimated_baseline_PSR_distr_perc'+str(i)] = np.percentile(PSR_LIST,i)
+			# for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
+			# 	tld['estimated_baseline_PSR_distr_perc'+str(i)] = np.percentile(PSR_LIST,i)
 
 			outputDF.append(tld)
 			del tld
 
 		# In order to compute the genome-wide baseline PSR distribution, for each iteration compute the weighted averages of the PSR estimates over all contigs.
-		genome_PSR_distr = []
-		for iteration in range(len(PSR_estimates[0])):
-			tmp = []
-			for contig in range(len(PSR_estimates)):
-				tmp.append(PSR_estimates[contig][iteration])
-			w_av = np.average(tmp, weights = [x['total_covered_bases'] for x in outputDF])
-			genome_PSR_distr.append(w_av)
+		# genome_PSR_distr = []
+		# for iteration in range(len(PSR_estimates[0])):
+		# 	tmp = []
+		# 	for contig in range(len(PSR_estimates)):
+		# 		tmp.append(PSR_estimates[contig][iteration])
+		# 	w_av = np.average(tmp, weights = [x['total_covered_bases'] for x in outputDF])
+		# 	genome_PSR_distr.append(w_av)
 
 
 		if float(allGenomeCol['total_covered_bases']) > 0: 
@@ -379,8 +379,8 @@ if __name__ == "__main__":
 			allGenomeCol['dominant_allele_distr_sd'] = np.std(allRatios)
 			for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
 				allGenomeCol['dominant_allele_distr_perc_'+str(i)] = np.percentile(allRatios,i)
-			for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
-				allGenomeCol['estimated_baseline_PSR_distr_perc'+str(i)] = np.percentile(genome_PSR_distr,i)
+			# for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
+			# 	allGenomeCol['estimated_baseline_PSR_distr_perc'+str(i)] = np.percentile(genome_PSR_distr,i)
 
 
 		outputDF.append(allGenomeCol)
