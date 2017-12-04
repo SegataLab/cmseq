@@ -25,7 +25,7 @@ class BamFile:
 
 		bamHandle = pysam.AlignmentFile(fp, "rb")
 		self.bam_handle = bamHandle
-		self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if l > minlen)
+		self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and bamHandle.count(contig=r) > 0))
 
 	def get_contigs(self): return iter(self.contigs.keys())
 	def get_contigs_obj(self): return iter(self.contigs.values())
@@ -345,7 +345,9 @@ if __name__ == "__main__":
 
 			# PSR_estimates is a list of lists, with each internal list containing the monte-carlo estimates of PSR for each contig.
 			# PSR_estimates.append(PSR_LIST)
-
+			#print '1',contig
+			#print '2',element
+			#print '3',element.name
 			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,dominant_frq_thrsh=args.dominant_frq_thrsh, precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
 		
@@ -401,11 +403,11 @@ if __name__ == "__main__":
 
 		tl = [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj())
 
-		print 'Contig\tBreadth\tDepth (avg)\tDepth (median)'
+		print('Contig\tBreadth\tDepth (avg)\tDepth (median)')
 
 		for i in tl:
 			bd_result = i.breadth_and_depth_of_coverage(minqual=args.minqual,mincov=args.mincov)
-			print i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2])
+			print(i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2]))
 		
 
 	def consensus_from_file(args):
