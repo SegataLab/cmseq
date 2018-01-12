@@ -2,6 +2,7 @@
 
 import os,pysam
 import numpy as np
+from scipy import stats
 import math
 import sys
 
@@ -147,31 +148,36 @@ class BamContig:
 		return rv
 
 
-	def breadth_and_depth_of_coverage(self,mincov=10,minqual=30):
+	def breadth_and_depth_of_coverage(self,mincov=10,minqual=30,trunc=0):
 		coverage_positions = {}
-		ptl=0
-
+		if self.length > trunc*2: 
+			# Check if the contig is long enough to be truncated
+			consid_r = range(int(trunc), int(self.length - trunc))
+		else:
+			# If a contig is too short to be truncated, ignore the truncation. 
+			# I'm not very happy with this, but in all likelihood this part of the conditional statement will never be reached and is only here for safety reasons.
+			consid_r = range(0, int(self.length))
+		pos=0
 		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			#for each position
-			tCoverage = 0
-			for pileupread in pileupcolumn.pileups:
-				#for each base at the position
+			if pos in consid_r:
+				tCoverage = 0
+				for pileupread in pileupcolumn.pileups:
+					#for each base at the position	
+					if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G'):
+							tCoverage +=1
 
-				if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G'):
-					tCoverage +=1
-
-
-				if tCoverage >= mincov:
-					coverage_positions[pileupcolumn.pos] = tCoverage
+					if tCoverage >= mincov:
+						coverage_positions[pileupcolumn.pos] = tCoverage
+			pos += 1
 
 		if (len(coverage_positions.keys())) > 0:
-			breadth = float(len(coverage_positions.keys()))/self.length
+			breadth = float(len(coverage_positions.keys()))/len(consid_r)
 			avgdepth = np.mean(coverage_positions.values())
 			mediandepth = np.median(coverage_positions.values())
-
-			return (breadth,avgdepth,mediandepth)
-
-		else: return (np.nan,np.nan,np.nan)
+			return (breadth,avgdepth,mediandepth,coverage_positions.values())
+		else: 
+			return (np.nan,np.nan,np.nan,[np.nan])
 
 
 	def depth_of_coverage(self,mincov=10,minqual=30):
@@ -345,9 +351,7 @@ if __name__ == "__main__":
 
 			# PSR_estimates is a list of lists, with each internal list containing the monte-carlo estimates of PSR for each contig.
 			# PSR_estimates.append(PSR_LIST)
-			#print '1',contig
-			#print '2',element
-			#print '3',element.name
+
 			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,dominant_frq_thrsh=args.dominant_frq_thrsh, precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
 		
@@ -403,11 +407,18 @@ if __name__ == "__main__":
 
 		tl = [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj())
 
-		print('Contig\tBreadth\tDepth (avg)\tDepth (median)')
+		print 'Contig\tBreadth\tDepth (avg)\tDepth (median)'
 
+		all_coverage_values = []
 		for i in tl:
-			bd_result = i.breadth_and_depth_of_coverage(minqual=args.minqual,mincov=args.mincov)
-			print(i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2]))
+			bd_result = i.breadth_and_depth_of_coverage(minqual=args.minqual,mincov=args.mincov,trunc=args.truncate)
+			print i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2])
+			all_coverage_values.extend(bd_result[3])
+
+		if np.all(np.isnan(bd_result[3])):
+			print "whole_genome"+'\t'+str("NaN")+'\t'+str("NaN")+'\t'+str("NaN")+'\t'+str("NaN")+'\t'+str("NaN")
+		else:
+			print "whole_genome"+'\t'+str("NaN")+'\t'+str("NaN")+'\t'+str(np.nanmedian(all_coverage_values))+'\t'+str(np.nanmean(all_coverage_values))+'\t'+str(np.nanstd(all_coverage_values))
 		
 
 	def consensus_from_file(args):
@@ -464,7 +475,8 @@ if __name__ == "__main__":
 	parser_breadth.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
 	parser_breadth.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 30', type=int, default=30)
 	parser_breadth.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
-	
+	parser_breadth.add_argument('--truncate', help='Number of nucleotides that are truncated at either contigs end before calculating coverage values.', type=float, default=0)
+
 	parser_breadth.set_defaults(func=bd_from_file)
 
 	parser_poly = subparsers.add_parser('poly',description="Reports the polymorpgic rate of each reference (polymorphic bases / total bases). Focuses only on covered regions (i.e. depth >= 1)")
