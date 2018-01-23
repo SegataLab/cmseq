@@ -13,27 +13,27 @@ parser.add_argument('--logfile', help='output a logfile reporting the results')
 
 args = parser.parse_args()
 samfile = pysam.AlignmentFile("-", "rb")
-passingReads = pysam.AlignmentFile("-", "wb", template=samfile)
+#passingReads = pysam.AlignmentFile("-", "wb", template=samfile)
 
 if args.logfile:
 	logFile = open(args.logfile,'w')
 
 for read in samfile.fetch():
-	if not read.is_secondary and float(read.query_alignment_length) / float(read.query_length) >= args.minlen and int(read.get_tag('XM'))+int(read.get_tag('XO')) <= args.maxsnps and np.mean(read.query_qualities[1]) >= args.minqual:
-		if logFile:
+	print read.query_name,read.query_length
+	if not read.is_secondary and float(read.query_alignment_length) / float(read.query_length) >= args.minlen and int(read.get_tag('NM')) <= args.maxsnps and np.mean(read.query_qualities[1]) >= args.minqual:
+		if args.logfile:
 			logFile.write(str(read.query_name)+"\tPASS\n")
-			
 
-		passingReads.write(read)
+		#passingReads.write(read)
 	else:
-		if logFile:
+		if args.logfile:
 			if read.is_secondary: reason = "IS SECONDARY"
 			elif float(read.query_alignment_length) / float(read.query_length) < args.minlen: reason = "SHORT ALIGNMENT ("+str(float(read.query_alignment_length) / float(read.query_length)*100)+"% of the read-length)"
-			elif int(read.get_tag('XM'))+int(read.get_tag('XO')) > args.maxsnps: reason = "IS TOO SNIPPY ("+str( int(read.get_tag('XM'))+int(read.get_tag('XO')) )+")"
+			elif int(read.get_tag('NM')) > args.maxsnps: reason = "IS TOO SNIPPY ("+str( int(read.get_tag('NM')) )+")"
 			elif np.mean(read.query_qualities[1]) < args.minqual: reason = "IS TOO LOW QUALITY ("+str(np.mean(read.query_qualities[1]))+")"
 			logFile.write(str(read.query_name)+"\tREMOVE\t"+reason+'\n')
 
 passingReads.close()
-if logFile:
+if args.logfile:
 	logFile.close()
 samfile.close()

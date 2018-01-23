@@ -2,7 +2,6 @@
 
 import os,pysam
 import numpy as np
-from scipy import stats
 import math
 import sys
 
@@ -26,11 +25,75 @@ class BamFile:
 
 		bamHandle = pysam.AlignmentFile(fp, "rb")
 		self.bam_handle = bamHandle
+		
 		self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and bamHandle.count(contig=r) > 0))
 
 	def get_contigs(self): return iter(self.contigs.keys())
 	def get_contigs_obj(self): return iter(self.contigs.values())
 	def get_contig_by_label(self,contigID): return (self.contigs[contigID] if contigID in self.contigs else None)
+
+	def parse_gff(self, inputGFF):
+		'''
+		get a list of contigs plus 0-indexed gene-coordinates and sense-ness of protein coding regions from a gff file.
+		Only tested with prokka GFF files.
+		'''
+		from BCBio import GFF
+		import Bio
+		import re
+		import warnings
+
+		def rev_comp(string):
+			string = string.upper()
+			complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'} 
+			bases = list(string) 
+			bases = [complement[base] for base in bases]
+			bases.reverse()
+			return ''.join(bases)
+
+		in_file = inputGFF
+		in_handle = open(in_file)
+		#gene_locations = {}
+		try:
+			parsed_gff = GFF.parse(in_handle)
+		except AttributeError:
+			print 'Parsing of GFF failed. This is probably because your biopython version is too new. Try downgrading to 1.67.'
+		for rec in GFF.parse(in_handle):
+			tmp = []
+			for r in rec.features:
+				if "minced" in r.qualifiers['source'][0] or "Minced" in r.qualifiers['source'][0]:
+					# This catches CRISPR repeats.
+					continue
+				if 'Prodigal' in r.sub_features[0].qualifiers['source'][0] or 'prodigal' in r.sub_features[0].qualifiers['source'][0]:
+					# Prokka not only finds protein sequences, but also t-/r-RNA sequences. In order to only parse protein coding sequences,
+					# I search for Prodigal/Prodigal in the source entry of the sub_features attribute.
+					
+					# the sub_features attribute of a seq_record object is apparently deprecated. I couldn't find any other way to access
+					# the required information, though. Should probably be fixed when I can.
+					indices = str(r.location).split('[')[1].split(']')[0].split(':')
+					indices = [int(x) for x in indices]
+					sense = str(r.location).split('(')[1].split(')')[0]
+					if sense == "-":
+						gene_seq = rev_comp(rec.seq[indices[0]:indices[1]])
+					else:
+						gene_seq = rec.seq[indices[0]:indices[1]]
+
+					if (str(gene_seq[0:3]) == "ATG" or str(gene_seq[0:3]) == "GTG" or str(gene_seq[0:3]) == "TTG"):
+						pass
+					else:
+						warnings.warn(str(r.id) + " doesn't start with a common start codon. Beware. Continuing.")
+
+					if (str(gene_seq[-3:]) == "TAG" or str(gene_seq[-3:]) == "TAA" or str(gene_seq[-3:]) == "TGA"):
+						pass
+					else:
+						warnings.warn(str(r.id) + " doesn't stop with a usual stop codon. Beware. Continuing.")
+					tmp.append((indices, sense))
+			
+			if str(rec.id) in self.contigs:
+				self.contigs[str(rec.id)].annotations.append(tmp)
+			else:
+				warnings.warn(str(rec.id) + " is not tracked by the BAMFile.")
+		in_handle.close()
+		
 
 
 class BamContig:
@@ -40,6 +103,7 @@ class BamContig:
 	name = None
 	length = None
 	stepper = 'nofilter'
+	annotations = None
 
 	def __init__(self,bamHandle,contigName,contigLength,stepper='nofilter'):
 
@@ -47,6 +111,7 @@ class BamContig:
 		self.length = contigLength
 		self.bam_handle = bamHandle 
 		self.stepper=stepper
+		self.annotations = []
 
 
 	def set_stepper(self,ns):
@@ -121,6 +186,164 @@ class BamContig:
 		PSR = float(polymorphic_empirical_loci) / float(len(depthsList))
 		return PSR
 
+	def get_base_stats_for_poly(self,minqual=30):
+		
+		from scipy import stats
+		import numpy
+		from collections import defaultdict
+		import pickle,os
+		from itertools import chain
+		import sys
+		import pandas as pd
+
+		ATCG=('A','C','G','T')
+		rev_dict={'A':'T', 'T':'A', 'G':'C', 'C':'G'}
+		def rev_pos(cur_pos, gene_start, gene_end):
+			# This function mirrors nucleotide positions in a gene on a gene's 'mid-part'
+			# (So Nucleotide 1 in a gene is mapped to the last nucleotide in the gene, nucleotide 2 is mapped to one before the last nucleotide on the gene and so forth)
+			# The gene_length variable is misnamed. It should be called gene_length_minus_one..
+			gene_length = ((gene_end - 1) - gene_start)
+			distance_from_start = cur_pos - gene_start
+			return(cur_pos + (gene_length - 2 * distance_from_start))
+
+		if not self.annotations:
+			base_stats = [None] * self.length
+			for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper):
+				
+				base_freq = {'A':0,'C':0,'G':0,'T':0,'N':0}
+				for matched_read in base_pileup.pileups:
+
+					if not matched_read.is_del and not matched_read.is_refskip:
+						b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
+						q = matched_read.alignment.query_qualities[matched_read.query_position]	
+
+						#print self.name,matched_read.query_position, b,q
+
+						if q >= minqual and b in ATCG: base_freq[b] += 1
+					 	#else: print "Q",q,"B",b
+					#print "Filling",base_pileup.pos,"with", base_freq
+					if sum(base_freq.values()) > 0:
+						base_stats[base_pileup.pos] = ((base_freq['A'],base_freq['C'],base_freq['G'],base_freq['T']),base_pileup.pos)
+		else:
+			base_stats = []
+			# Generate pileups gene-wise
+			# I use the 'truncate' parameter to only obtain the parsed start and stop positions. Without truncate, all positions with reads covering the parsed positions are returned.
+			# I wrote a function that reverses a given gene position, which is used to effectively revert genes on the anti-sense strand.
+			# Furthermore, for each read's nucleotide over a given position I write out the complement
+			genes_and_positions = dict()
+			for gene_idx in range(0, len(self.annotations[0])):
+				genes_and_positions[gene_idx] = self.annotations[0][gene_idx]
+			
+			for gene_idx in genes_and_positions:
+				gene_stats = [None] * (genes_and_positions[gene_idx][0][1] - genes_and_positions[gene_idx][0][0])
+				pos_on_gene = 0
+				bam_pileup = self.bam_handle.pileup(self.name, int(genes_and_positions[gene_idx][0][0]), int(genes_and_positions[gene_idx][0][1]), stepper=self.stepper, truncate = True)
+				if genes_and_positions[gene_idx][1] == "+":
+					# If the gene is on the sense-strand, do the same as before.
+					for base_pileup in bam_pileup:
+						base_freq = {'A':0,'C':0,'G':0,'T':0,'N':0}
+						for matched_read in base_pileup.pileups:
+							if not matched_read.is_del and not matched_read.is_refskip:
+								b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
+								q = matched_read.alignment.query_qualities[matched_read.query_position]	
+								if q >= minqual and b in ATCG: base_freq[b] += 1
+							if sum(base_freq.values()) > 0:
+								gene_stats[pos_on_gene] = ((base_freq['A'],base_freq['C'],base_freq['G'],base_freq['T']), base_pileup.pos)
+						pos_on_gene += 1
+					base_stats.extend(gene_stats)
+				else:
+					# If the gene is on the anti-sense strand, effectively return the reverse complement by mapping positions on a gene to it's mirrored position (using rev_pos)
+					# and then also converting each nucleotide to it's complement.
+					for base_pileup in bam_pileup:
+						base_freq = {'A':0,'C':0,'G':0,'T':0,'N':0}
+						for matched_read in base_pileup.pileups:
+							if not matched_read.is_del and not matched_read.is_refskip:
+								b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
+								q = matched_read.alignment.query_qualities[matched_read.query_position]	
+								# We have to increment the COMPLEMENT of each base when gene calls are on the reverse strand.
+								if q >= minqual and b in ATCG: base_freq[rev_dict[b]] += 1
+							if sum(base_freq.values()) > 0:
+								out_pos = rev_pos(cur_pos = int(pos_on_gene), gene_start = 0, gene_end = len(gene_stats))
+								contig_pos = rev_pos(cur_pos = int(base_pileup.pos), gene_start = genes_and_positions[gene_idx][0][0], gene_end = genes_and_positions[gene_idx][0][1])
+								gene_stats[out_pos] = ((base_freq['A'],base_freq['C'],base_freq['G'],base_freq['T']), contig_pos)
+						pos_on_gene += 1
+					if len(gene_stats) % 3 != 0:
+						print("One of your genes' length is not a multiple of three. Check your gff file / gene calls. Exiting")
+						sys.exit()
+					base_stats.extend(gene_stats)
+
+		return base_stats
+
+	def easy_polymorphism_rate(self,mincov=10,minqual=30,dominant_frq_thrsh=0.8):
+
+		from Bio.Seq import Seq
+		from Bio.Alphabet import IUPAC
+
+		bases = self.get_base_stats_for_poly(minqual=minqual)
+		
+		#list N-long where N is the number of covered bases (N <= L(contig))
+		dominanceList = []
+ 		mutationStats={'DN':0,'DS':0,'D?':0}
+ 		
+ 		explainList=[]
+
+		codon_f1 = []
+		codon_f2 = []
+
+		for positionData in bases:
+			# positionData= ((A,C,G,T),position) if covered, None if not.
+			bases = ['N']
+
+			if positionData:
+				nuclAbundance,position = positionData
+				base_sum=sum(nuclAbundance)
+				base_max=float(max(nuclAbundance))
+
+				if base_sum > mincov:
+					dominance = float(base_max) / float(base_sum)
+					dominanceList.append(dominance)
+		
+					tmpDict = dict((k,v) for k,v in zip(['A','C','G','T'],nuclAbundance))
+					bases = [k for k,v in sorted(tmpDict.items(),key= lambda x: x[1], reverse=True) if v>0]	
+			else:
+				dominanceList.append(np.nan)
+			
+			first_base = bases[0]
+			second_base = bases[1] if (len(bases) > 1 and dominance < dominant_frq_thrsh) else bases[0]
+ 
+			codon_f1.append(first_base)
+			codon_f2.append(second_base)
+
+			if len(codon_f1) == 3 and len(codon_f2) == 3:
+
+				codon_s1 = Seq(''.join(codon_f1),IUPAC.ambiguous_dna)
+				codon_s2 = Seq(''.join(codon_f2),IUPAC.ambiguous_dna)
+				codon_t1 = codon_s1.translate()
+				codon_t2 = codon_s2.translate()
+
+				positionLabel = positionData[1] if positionData else 'ND'
+				
+				RD=None
+				if codon_t1 == "X" or codon_t2 == "X":
+					mutationStats['D?'] +=1
+					RD="D?"
+				elif codon_t1 != codon_t2:
+					mutationStats['DN'] +=1
+					RD="DN"
+
+				elif (codon_t1 == codon_t2) and (codon_s1 != codon_s2):
+					mutationStats['DS'] +=1
+					RD="DS"
+
+				#if we have a mutation, save it
+				if RD and positionData: explainList.append((positionLabel,RD,codon_s1,codon_s2, codon_t1,codon_t2))
+
+				#print positionData[1] if positionData else 'ND',codon_s1,codon_s2,codon_t1,codon_t2, "RD:",RD
+				codon_f1 = []
+				codon_f2 = []
+
+		return (dominanceList,mutationStats,explainList)
+
 
 	def polymorphism_rate(self,mincov=10,minqual=30,pvalue=0.01,error_rate=0.001,dominant_frq_thrsh=0.8,precomputedBinomial=None):
 
@@ -155,9 +378,9 @@ class BamContig:
 			consid_r = range(int(trunc), int(self.length - trunc))
 		else:
 			# If a contig is too short to be truncated, ignore the truncation. 
-			# I'm not very happy with this, but in all likelihood this part of the conditional statement will never be reached and is only here for safety reasons.
+			# This is not nice and should be improved.
 			consid_r = range(0, int(self.length))
-		pos=0
+
 		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			#for each position
 			if pos in consid_r:
@@ -178,7 +401,6 @@ class BamContig:
 			return (breadth,avgdepth,mediandepth,coverage_positions.values())
 		else: 
 			return (np.nan,np.nan,np.nan,[np.nan])
-
 
 	def depth_of_coverage(self,mincov=10,minqual=30):
 		return self.breadth_and_depth_of_coverage(mincov,minqual)[1]
@@ -236,7 +458,6 @@ class BamContig:
 			ax.grid(True)
 			ax.set_xticklabels(['0', str(int(self.length/8)), str(int(self.length/4)), str(int(self.length*3/8)), str(int(self.length/2)), str(int(self.length*5/8)), str(int(self.length/4*3)), str(int(self.length*7/8))])
 		else:
-
 			if not l_avoid: plt.plot(iret.keys(),y_smooth,label='Coverage',linewidth=0.5,c=l_color,zorder=1)
 			if not s_avoid: plt.scatter(iret.keys(),y_smooth,label='Coverage',s=1,c=s_color, zorder=2)
 			plt.grid(True)
@@ -263,7 +484,6 @@ class BamContig:
 		for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			base_freq = {'A':0,'T':0,'C':0,'G':0,'N':0}
 			for matched_read in base_pileup.pileups:
-				
 				
 				if not matched_read.is_del and not matched_read.is_refskip:
 					b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
@@ -302,6 +522,7 @@ class BamContig:
 		'''
 		base_stats = self.get_base_stats(*f_args, **f_kwargs)
 		return [base_stats[k].get(stats_value, 'NaN') for k in base_stats]
+
 #------------------------------------------------------------------------------
 
 
@@ -323,7 +544,51 @@ def get_contig_list(inputList):
 	
 	return toList
 
+
+
+
+class bcolors:
+	HEADER = '\033[95m'
+	OKBLUE = '\033[94m'
+	OKGREEN = '\033[92m'
+	WARNING = '\033[93m'
+	FAIL = '\033[91m'
+	ENDC = '\033[0m'        
+	OKGREEN2 = '\033[42m\033[30m'
+	RED = '\033[1;91m'
+	CYAN = '\033[0;37m'
+
 if __name__ == "__main__":
+
+	def polymut_from_file(args):
+		
+		import pandas as pd
+		import numpy as np
+
+		outputDicts=[]
+
+		si = True if args.sortindex else False
+		mode = 'all' if args.f else 'nofilter'
+
+		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
+
+		if (args.gff_file):
+			bf.parse_gff(args.gff_file)
+
+		tl = [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj())
+		for i in tl:
+			dominanceArray,mutationStats,explainList = i.easy_polymorphism_rate(minqual=args.minqual,mincov=args.mincov,dominant_frq_thrsh=args.dominant_frq_thrsh)
+
+			explain = [str(positionLabel)+":"+(bcolors.OKGREEN2 if codon_t1 == codon_t2 else bcolors.FAIL)+str(codon_t1)+'>'+str(codon_t2)+bcolors.ENDC+' ' for (positionLabel,RD,codon_s1,codon_s2, codon_t1,codon_t2) in explainList]  
+			if not all(np.isnan(dominanceArray)):
+				outputDicts.append({'Ref':i.name,'Len':i.length,'DN':mutationStats['DN'],'DS':mutationStats['DS'],'D?':mutationStats['D?'],'Dominance Mean': np.nanmean(dominanceArray) ,'Dominance STD':  np.nanstd(dominanceArray),'info':' '.join(explain)})
+			else:
+				outputDicts.append({'Ref':i.name,'Len':i.length,'DN':mutationStats['DN'],'DS':mutationStats['DS'],'D?':mutationStats['D?'],'Dominance Mean': np.nan ,'Dominance STD':  np.nan,'info':' '.join(explain)})
+
+		out_df = pd.DataFrame.from_dict(outputDicts).set_index('Ref')
+		# Check the number of non-nan entries in dominanceArray.
+		considered_positions = [x for x in dominanceArray if x  != np.nan]
+		print float(np.sum(out_df["DN"])), float(np.sum(out_df["DS"])), len(considered_positions)
 
 	def poly_from_file(args):
 
@@ -336,7 +601,6 @@ if __name__ == "__main__":
 		si = True if args.sortindex else False
 		mode = 'all' if args.f else 'nofilter'
 		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
-
 
 		outputDF = []
 		allRatios = []
@@ -351,6 +615,9 @@ if __name__ == "__main__":
 
 			# PSR_estimates is a list of lists, with each internal list containing the monte-carlo estimates of PSR for each contig.
 			# PSR_estimates.append(PSR_LIST)
+			#print '1',contig
+			#print '2',element
+			#print '3',element.name
 
 			tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,dominant_frq_thrsh=args.dominant_frq_thrsh, precomputedBinomial=binomPrecomputed)
 			tld['referenceID'] = element.name
@@ -407,9 +674,8 @@ if __name__ == "__main__":
 
 		tl = [bf.get_contig_by_label(contig) for contig in get_contig_list(args.contig)] if args.contig is not None else list(bf.get_contigs_obj())
 
-		print 'Contig\tBreadth\tDepth (avg)\tDepth (median)'
+		print('Contig\tBreadth\tDepth (avg)\tDepth (median)')
 
-		all_coverage_values = []
 		for i in tl:
 			bd_result = i.breadth_and_depth_of_coverage(minqual=args.minqual,mincov=args.mincov,trunc=args.truncate)
 			print i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2])
@@ -430,7 +696,6 @@ if __name__ == "__main__":
 
 		si = True if args.sortindex else False
 		mode = 'all' if args.f else 'nofilter'
-
 
 
 		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen)
@@ -476,7 +741,7 @@ if __name__ == "__main__":
 	parser_breadth.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 30', type=int, default=30)
 	parser_breadth.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=1)
 	parser_breadth.add_argument('--truncate', help='Number of nucleotides that are truncated at either contigs end before calculating coverage values.', type=float, default=0)
-
+	
 	parser_breadth.set_defaults(func=bd_from_file)
 
 	parser_poly = subparsers.add_parser('poly',description="Reports the polymorpgic rate of each reference (polymorphic bases / total bases). Focuses only on covered regions (i.e. depth >= 1)")
@@ -495,6 +760,23 @@ if __name__ == "__main__":
 	parser_poly.add_argument('--precomputed', help='Path to a pickled dictionary containing the precomputed probabilities of scipy.stats.binom function.')
 
 	parser_poly.set_defaults(func=poly_from_file)
+
+
+	###
+	parser_polymut = subparsers.add_parser('polymut',description="Reports the polymorpgic rate of each reference (polymorphic bases / total bases). Focuses only on covered regions (i.e. depth >= 1)")
+	parser_polymut.add_argument('BAMFILE', help='The file on which to operate')
+	parser_polymut.add_argument('-c','--contig', help='Focus on a subset of references in the BAM file. Can be a list of references separated by commas or a FASTA file (the IDs are used to subset)', metavar="REFERENCE ID" ,default=None)
+	parser_polymut.add_argument('--gff_file', help='Focus on protein coding gene calls on your contigs', metavar="GFF" ,default=None)
+	parser_polymut.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
+	parser_polymut.add_argument('--sortindex', help='Sort and index the file',action='store_true')
+	parser_polymut.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered',default=0, type=int)
+	parser_polymut.add_argument('--minqual', help='Minimum base quality. Bases with quality score lower than this will be discarded. This is performed BEFORE --mincov. Default: 30', type=int, default=30)
+	parser_polymut.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 10', type=int, default=10)
+
+	parser_polymut.add_argument('--dominant_frq_thrsh', help='Cutoff for degree of `allele dominance` for a position to be considered polymorphic.', type=float, default=0.8)
+	parser_polymut.set_defaults(func=polymut_from_file)
+	###
+
 
 	parser_consensus = subparsers.add_parser('consensus',description="outputs the consensus in FASTA format. Non covered positions (or quality-trimmed positions) are reported as a dashes: -")
 	parser_consensus.add_argument('BAMFILE', help='The file on which to operate')
