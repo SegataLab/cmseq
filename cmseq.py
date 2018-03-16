@@ -26,7 +26,7 @@ class BamFile:
 		bamHandle = pysam.AlignmentFile(fp, "rb")
 		self.bam_handle = bamHandle
 		
-		self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and bamHandle.count(contig=r) > 0))
+		self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen))
 
 	def get_contigs(self): return iter(self.contigs.keys())
 	def get_contigs_obj(self): return iter(self.contigs.values())
@@ -63,7 +63,12 @@ class BamFile:
 				if "minced" in r.qualifiers['source'][0] or "Minced" in r.qualifiers['source'][0]:
 					# This catches CRISPR repeats.
 					continue
-				if 'Prodigal' in r.sub_features[0].qualifiers['source'][0] or 'prodigal' in r.sub_features[0].qualifiers['source'][0]:
+				if r.sub_features:
+					prodigal_bool = 'Prodigal' in r.sub_features[0].qualifiers['source'][0] or 'prodigal' in r.sub_features[0].qualifiers['source'][0]
+				else:
+					prodigal_bool = 'Prodigal' in r.qualifiers['source'][0] or 'prodigal' in r.qualifiers['source'][0]
+				
+				if prodigal_bool:
 					# Prokka not only finds protein sequences, but also t-/r-RNA sequences. In order to only parse protein coding sequences,
 					# I search for Prodigal/Prodigal in the source entry of the sub_features attribute.
 					
@@ -268,7 +273,9 @@ class BamContig:
 								gene_stats[out_pos] = ((base_freq['A'],base_freq['C'],base_freq['G'],base_freq['T']), contig_pos)
 						pos_on_gene += 1
 					if len(gene_stats) % 3 != 0:
-						print("One of your genes' length is not a multiple of three. Check your gff file / gene calls. Exiting")
+						print("One of your genes' length is not a multiple of three. Check your gff file / gene calls.")
+						print("Contig name", self.name)
+						print("Gene position", genes_and_positions[gene_idx])
 						sys.exit()
 					base_stats.extend(gene_stats)
 
@@ -383,7 +390,7 @@ class BamContig:
 
 		for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			#for each position
-			if pos in consid_r:
+			if pileupcolumn.pos in consid_r:
 				tCoverage = 0
 				for pileupread in pileupcolumn.pileups:
 					#for each base at the position	
@@ -392,7 +399,6 @@ class BamContig:
 
 					if tCoverage >= mincov:
 						coverage_positions[pileupcolumn.pos] = tCoverage
-			pos += 1
 
 		if (len(coverage_positions.keys())) > 0:
 			breadth = float(len(coverage_positions.keys()))/len(consid_r)
@@ -581,14 +587,12 @@ if __name__ == "__main__":
 
 			explain = [str(positionLabel)+":"+(bcolors.OKGREEN2 if codon_t1 == codon_t2 else bcolors.FAIL)+str(codon_t1)+'>'+str(codon_t2)+bcolors.ENDC+' ' for (positionLabel,RD,codon_s1,codon_s2, codon_t1,codon_t2) in explainList]  
 			if not all(np.isnan(dominanceArray)):
-				outputDicts.append({'Ref':i.name,'Len':i.length,'DN':mutationStats['DN'],'DS':mutationStats['DS'],'D?':mutationStats['D?'],'Dominance Mean': np.nanmean(dominanceArray) ,'Dominance STD':  np.nanstd(dominanceArray),'info':' '.join(explain)})
+				outputDicts.append({'Ref':i.name,'Len':i.length,'DN':mutationStats['DN'],'DS':mutationStats['DS'],'D?':mutationStats['D?'],'Dominance Mean': np.nanmean(dominanceArray) ,'Dominance STD':  np.nanstd(dominanceArray),'info':' '.join(explain), "consid_pos":len([x for x in dominanceArray if x  != np.nan])})
 			else:
-				outputDicts.append({'Ref':i.name,'Len':i.length,'DN':mutationStats['DN'],'DS':mutationStats['DS'],'D?':mutationStats['D?'],'Dominance Mean': np.nan ,'Dominance STD':  np.nan,'info':' '.join(explain)})
+				outputDicts.append({'Ref':i.name,'Len':i.length,'DN':mutationStats['DN'],'DS':mutationStats['DS'],'D?':mutationStats['D?'],'Dominance Mean': np.nan ,'Dominance STD':  np.nan,'info':' '.join(explain), "consid_pos":len([x for x in dominanceArray if x  != np.nan])})
 
 		out_df = pd.DataFrame.from_dict(outputDicts).set_index('Ref')
-		# Check the number of non-nan entries in dominanceArray.
-		considered_positions = [x for x in dominanceArray if x  != np.nan]
-		print float(np.sum(out_df["DN"])), float(np.sum(out_df["DS"])), len(considered_positions)
+		print float(np.sum(out_df["DN"])), float(np.sum(out_df["DS"])), float(sum(out_df["consid_pos"])) 
 
 	def poly_from_file(args):
 
@@ -676,15 +680,16 @@ if __name__ == "__main__":
 
 		print('Contig\tBreadth\tDepth (avg)\tDepth (median)')
 
+		all_coverage_values = []
 		for i in tl:
 			bd_result = i.breadth_and_depth_of_coverage(minqual=args.minqual,mincov=args.mincov,trunc=args.truncate)
 			print i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2])
 			all_coverage_values.extend(bd_result[3])
 
-		if np.all(np.isnan(bd_result[3])):
+		if np.all(np.isnan(all_coverage_values)):
 			print "whole_genome"+'\t'+str("NaN")+'\t'+str("NaN")+'\t'+str("NaN")+'\t'+str("NaN")+'\t'+str("NaN")
 		else:
-			print "whole_genome"+'\t'+str("NaN")+'\t'+str("NaN")+'\t'+str(np.nanmedian(all_coverage_values))+'\t'+str(np.nanmean(all_coverage_values))+'\t'+str(np.nanstd(all_coverage_values))
+			print "whole_genome"+'\t'+str("NaN")+'\t'+str(np.nanmean(all_coverage_values)) + '\t'+str(np.nanmedian(all_coverage_values))
 		
 
 	def consensus_from_file(args):

@@ -13,18 +13,18 @@ parser.add_argument('--logfile', help='output a logfile reporting the results')
 
 args = parser.parse_args()
 samfile = pysam.AlignmentFile("-", "rb")
-#passingReads = pysam.AlignmentFile("-", "wb", template=samfile)
+passingReads = pysam.AlignmentFile("-", "wb", template=samfile)
 
 if args.logfile:
 	logFile = open(args.logfile,'w')
 
 for read in samfile.fetch():
-	print read.query_name,read.query_length
+	
 	if not read.is_secondary and float(read.query_alignment_length) / float(read.query_length) >= args.minlen and int(read.get_tag('NM')) <= args.maxsnps and np.mean(read.query_qualities[1]) >= args.minqual:
 		if args.logfile:
 			logFile.write(str(read.query_name)+"\tPASS\n")
 
-		#passingReads.write(read)
+		passingReads.write(read)
 	else:
 		if args.logfile:
 			if read.is_secondary: reason = "IS SECONDARY"
