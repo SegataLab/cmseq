@@ -3,12 +3,10 @@
  
 * Provides interface for .bam files
 * reference free consensus
-* Breadth and Depth of coverage
-* Coverage plots
+* Breadth and Depth of coverage 
 
 Requires samtools (> 1.x), numpy, pysam, matplotlib and seaborn
-
-
+ 
 ## Usage as Python Module ##
 
 ### class BamFile ###
@@ -21,6 +19,10 @@ To create a new BamContig from an unsorted BAM file:
 collection = cmseq.BamFile(BAM_FILE_PATH,sort=True,index=True,minlen=0)
 ```
 
+an optional argument ``filterInputList`` can be passed to BamFile, to filter only some references. ``filterInputList`` can be:
+* a string of comma-separated IDs
+* the path to a FASTA file with the to-be-filtered IDs as FASTA IDs
+
 To start from a pre-sorted and indexed bam file:
 ```
 #!python
@@ -30,7 +32,7 @@ collection = cmseq.BamFile(BAM_FILE_PATH)
 To set the pysam stepper to a custom value (e.g. `all`, that avoids secondary alignments or `nofilter`, that includes secondary alignments):
 ```
 #!python
-#Impose a custom stepper for all the contigs of the BAMFILE
+#Chose a custom stepper for all the contigs of the BAMFILE
 collection = cmseq.BamFile(BAM_FILE_PATH,stepper='all')
 ```
 
@@ -98,24 +100,8 @@ BamContig.**breadth_of_coverage**: returns a float, with the percentage of the t
 
 **Polymorphic Rate**
 
-BamContig.**polymorphism_rate**: returns a float, with the percentage of polymorphic positions, over the total number of reconstructable positions. It takes as optional parameters `mincov` and `minqual` as *depth_of_coverage*. 
-
-**Coverage Plot**
-BamContig.**plot_coverage()** produces a PDF file with a coverage plot. 
-
-```
-#!python
-BamContig.plot_coverage(flavour='polar',path='./out.pdf',smooth=0,l_avoid=False,s_avoid=False,l_color='#000000',s_color='#000000')
-```
-
-**flavour {'polar','linear'}**: changes from polar to linear coverage plot
-**path**: the path of the output image file
-**smooth**: convolution window size for smoothing (default 0 = no-smoothing)
-**l_avoid**: do not plot line
-**s_avoid**: do not plot scatter points
-**l_color**: line_color (in HTML format, string)
-**s_color**: scatter color (in HTML format, string)
-
+BamContig.**polymorphism_rate**: returns a DataFrame, with the statistics of polymorphic positions, over the total number of reconstructable positions. It takes as optional parameters `mincov` and `minqual` as *depth_of_coverage*. 
+ 
 **Set the Pysam stepper**
 
 BamContig.**set_stepper(VALUE)**: resets the pysam stepper for the reference. VALUE can be `all` or `nofilter`, as of the pysam specifications. By default the stepper is set to 'nofilter' (bedtools style).
