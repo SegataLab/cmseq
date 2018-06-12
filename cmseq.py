@@ -154,8 +154,6 @@ class BamContig:
 
 	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get),mincov=CMSEQ_DEFAULTS.mincov,minqual=CMSEQ_DEFAULTS.minqual,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh):
 
-#		if (fast) : return self.fast_reference_free_consensus(consensus_rule)
-		print dominant_frq_thrsh
 		consensus_positions = {}
 
 		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,dominant_frq_thrsh=dominant_frq_thrsh).items():
