@@ -261,8 +261,8 @@ class BamContig:
 								b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
 								q = matched_read.alignment.query_qualities[matched_read.query_position]	
 								if q >= minqual and b in ATCG: base_freq[b] += 1
-							if sum(base_freq.values()) > 0:
-								gene_stats[pos_on_gene] = ((base_freq['A'],base_freq['C'],base_freq['G'],base_freq['T']), base_pileup.pos)
+						if sum(base_freq.values()) > 0:
+							gene_stats[pos_on_gene] = ((base_freq['A'],base_freq['C'],base_freq['G'],base_freq['T']), base_pileup.pos)
 						pos_on_gene += 1
 					base_stats.extend(gene_stats)
 				else:
@@ -276,10 +276,10 @@ class BamContig:
 								q = matched_read.alignment.query_qualities[matched_read.query_position]	
 								# We have to increment the COMPLEMENT of each base when gene calls are on the reverse strand.
 								if q >= minqual and b in ATCG: base_freq[rev_dict[b]] += 1
-							if sum(base_freq.values()) > 0:
-								out_pos = rev_pos(cur_pos = int(pos_on_gene), gene_start = 0, gene_end = len(gene_stats))
-								contig_pos = rev_pos(cur_pos = int(base_pileup.pos), gene_start = genes_and_positions[gene_idx][0][0], gene_end = genes_and_positions[gene_idx][0][1])
-								gene_stats[out_pos] = ((base_freq['A'],base_freq['C'],base_freq['G'],base_freq['T']), contig_pos)
+						if sum(base_freq.values()) > 0:
+							out_pos = rev_pos(cur_pos = int(pos_on_gene), gene_start = 0, gene_end = len(gene_stats))
+							contig_pos = rev_pos(cur_pos = int(base_pileup.pos), gene_start = genes_and_positions[gene_idx][0][0], gene_end = genes_and_positions[gene_idx][0][1])
+							gene_stats[out_pos] = ((base_freq['A'],base_freq['C'],base_freq['G'],base_freq['T']), contig_pos)
 						pos_on_gene += 1
 					if len(gene_stats) % 3 != 0:
 						print("One of your genes' length is not a multiple of three. Check your gff file / gene calls.")
