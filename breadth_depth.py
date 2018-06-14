@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+from __future__ import print_function
 from cmseq import CMSEQ_DEFAULTS
 from cmseq import BamFile
 
@@ -17,20 +17,20 @@ def bd_from_file(args):
 
 		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filterInputList=args.contig)
 
- 		print('Contig\tBreadth\tDepth (avg)\tDepth (median)')
+ 		print('Contig\tBreadth\tDepth_(avg)\tDepth_(median)')
 
 		all_coverage_values = []
 		for i in bf.get_contigs_obj():
 			bd_result = i.breadth_and_depth_of_coverage(minqual=args.minqual,mincov=args.mincov,trunc=args.truncate)
 
 			if not all(np.isnan(x) for x in [bd_result[0],bd_result[1],bd_result[2]]):
-				print i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2])
+				print (i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2]))
 				all_coverage_values.extend(bd_result[3])
 
 		if np.all(np.isnan(all_coverage_values)):
-			print "all_contigs"+'\t-\t'+str("NaN")+'\t'+str("NaN")
+			print ("all_contigs"+'\t-\t'+str("NaN")+'\t'+str("NaN"))
 		else:
-			print "all_contigs"+'\t-\t'+str(np.nanmean(all_coverage_values)) + '\t'+str(np.nanmedian(all_coverage_values))
+			print ("all_contigs"+'\t-\t'+str(np.nanmean(all_coverage_values)) + '\t'+str(np.nanmedian(all_coverage_values)))
 
 
 if __name__ == "__main__":
