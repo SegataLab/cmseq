@@ -1,10 +1,11 @@
-#!/usr/bin/env python 
-
+#!/usr/bin/env python3 
+from __future__ import print_function
 import os
 import pysam
 import numpy as np
 import math
 import sys
+
 
 __author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it),	Nicolai Karcher'
 __version__ = '1.2'
@@ -84,7 +85,7 @@ class BamFile:
 		try:
 			parsed_gff = GFF.parse(in_handle)
 		except AttributeError:
-			print 'Parsing of GFF failed. This is probably because your biopython version is too new. Try downgrading to 1.67.'
+			print ('Parsing of GFF failed. This is probably because your biopython version is too new. Try downgrading to 1.67.')
 		for rec in GFF.parse(in_handle):
 			tmp = []
 			for r in rec.features:
@@ -152,11 +153,18 @@ class BamContig:
 	def set_stepper(self,ns):
 		if ns in ['all','nofilter']: self.stepper = ns
 
-	def reference_free_consensus(self,consensus_rule=lambda array: max(array, key=array.get),mincov=CMSEQ_DEFAULTS.mincov,minqual=CMSEQ_DEFAULTS.minqual,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh):
+	def majority_rule(freq_array):
+		
+		if any([v>0 for v in freq_array.values()]):
+			return max(sorted(freq_array), key=freq_array.get)
+		else: 
+			return 'N'
+
+	def reference_free_consensus(self,consensus_rule=majority_rule,mincov=CMSEQ_DEFAULTS.mincov,minqual=CMSEQ_DEFAULTS.minqual,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,noneCharacter='-',BAM_tagFilter=None):
 
 		consensus_positions = {}
 
-		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,dominant_frq_thrsh=dominant_frq_thrsh).items():
+		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,dominant_frq_thrsh=dominant_frq_thrsh,BAM_tagFilter=BAM_tagFilter).items():
 		
 		#apply the rule only to the pilepup positions for which the major/other nucleotides ratio is high enough:
 		#this means the position is safe to evaluate, and it is not (problematically) polymorphic
@@ -165,9 +173,9 @@ class BamContig:
 				consensus_positions[pileupcolumn] = consensus_rule(position_data['base_freq'])
 
 		if len(consensus_positions) > 0 :
-			self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else '-') for position in range(1,self.length+1)])
+			self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else noneCharacter) for position in range(1,self.length+1)])
 		else:
-			self.consensus = None
+			self.consensus = noneCharacter*self.length
 
 		del consensus_positions
 		return self.consensus
@@ -299,9 +307,9 @@ class BamContig:
 		
 		#list N-long where N is the number of covered bases (N <= L(contig))
 		dominanceList = []
- 		mutationStats={'DN':0,'DS':0,'D?':0}
- 		
- 		explainList=[]
+		mutationStats={'DN':0,'DS':0,'D?':0}
+		
+		explainList=[]
 
 		codon_f1 = []
 		codon_f2 = []
@@ -487,34 +495,44 @@ class BamContig:
 #		plt.close()
 		
 #------------------------------------------------------------------------------	
-	def get_base_stats(self, min_read_depth=CMSEQ_DEFAULTS.mincov, min_base_quality=CMSEQ_DEFAULTS.minqual, error_rate=CMSEQ_DEFAULTS.poly_error_rate,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh):
+	def get_base_stats(self, min_read_depth=CMSEQ_DEFAULTS.mincov, min_base_quality=CMSEQ_DEFAULTS.minqual, error_rate=CMSEQ_DEFAULTS.poly_error_rate,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,BAM_tagFilter=None):
 		'''
 		get base frequencies and quality stats,
 		to use in get_all_base_values() and other functions
 		'''
+
+
 		from scipy import stats
 		from collections import defaultdict
 		import pickle,os
 
-		base_stats = defaultdict(dict)
+		base_stats = defaultdict(dict) 
 
 		ATCG=('A','T','C','G')
+
+		#for each position (column)
 		for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			base_freq = {'A':0,'T':0,'C':0,'G':0,'N':0}
+			
+			pos=base_pileup.pos+1 # 1-based
+
+			#for each read composing the pile
 			for matched_read in base_pileup.pileups:
-				
 				if not matched_read.is_del and not matched_read.is_refskip:
 					b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
 					q = matched_read.alignment.query_qualities[matched_read.query_position]	
+					
+					thisPositionBase = 'N'
 
-					# if b=='N': print(matched_read.alignment.query_sequence)
-					if q >= min_base_quality:
-						if b in ATCG:
-							base_freq[b] += 1
-						else:
-							base_freq['N']+=1
+					if q >= min_base_quality and b in ATCG: #and int(matched_read.alignment.get_tag('AS')) >= 80 and int(matched_read.alignment.get_tag('XM')) <= 5:
+						if BAM_tagFilter is None:
+							thisPositionBase = b								
+						elif BAM_tagFilter and all(globals()[func](matched_read.alignment.get_tag(tag),limitValue) == True for (tag,func,limitValue) in BAM_tagFilter ):
+							thisPositionBase = b								
+							
+					base_freq[thisPositionBase] += 1
+
 			# calculate quality stats, ignoring N's 
-
 			base_sum=sum([base_freq[b] for b in ATCG]) 
 			base_max=float(max([base_freq[b] for b in ATCG]))
 
@@ -527,11 +545,12 @@ class BamContig:
 				else:
 					p = 1.0
 
-				pos=base_pileup.pos+1 # 1-based
+				
 				base_stats[pos]['p']=p                 # quality measure
 				base_stats[pos]['ratio_max2all']=r     # dominant base versus others
 				base_stats[pos]['base_cov'] =base_sum  # number of reads covering the base, not counting N's
 				base_stats[pos]['base_freq']=base_freq # dict: {'A':4,'T':1,'C':2,'G':0,'N':0}
+			
 		return base_stats
 	
 	def get_all_base_values(self, stats_value,  *f_args, **f_kwargs):
@@ -542,8 +561,23 @@ class BamContig:
 		base_stats = self.get_base_stats(*f_args, **f_kwargs)
 		return [base_stats[k].get(stats_value, 'NaN') for k in base_stats]
 
-#------------------------------------------------------------------------------
- 
+	
+		
+def loc_gte(a,b):
+	return a>=b
+
+def loc_lte(a,b):
+	return a<=b
+
+def loc_gt(a,b):
+	return a>b
+
+def loc_lt(a,b):
+	return a<b
+
+def loc_leq(a,b):
+	return a==b
+
 class bcolors:
 	HEADER = '\033[95m'
 	OKBLUE = '\033[94m'

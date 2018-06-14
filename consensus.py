@@ -23,7 +23,7 @@ def consensus_from_file(args):
 
 	for i in bf.get_contigs_obj():
 
-		sq = i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual,dominant_frq_thrsh=args.dominant_frq_thrsh)
+		sq = i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual,dominant_frq_thrsh=args.dominant_frq_thrsh,noneCharacter='N')
 		
 		if sq is not None:
 			lst.append(SeqRecord(Seq(sq, IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
