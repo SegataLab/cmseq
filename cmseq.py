@@ -44,7 +44,10 @@ class BamFile:
 		if filterInputList is not None:
 			from Bio import SeqIO
 			toList=[]
-			if os.path.isfile(filterInputList):
+			if isinstance(filterInputList, list):
+				toList = filterInputList
+			
+			elif os.path.isfile(filterInputList):
 				with open(filterInputList, "r") as infile:
 					for record in SeqIO.parse(infile, "fasta"):
 						toList.append(record.id)
@@ -58,8 +61,6 @@ class BamFile:
 	def get_contigs(self): return iter(self.contigs.keys())
 	def get_contigs_obj(self): return iter(self.contigs.values())
 	def get_contig_by_label(self,contigID): return (self.contigs[contigID] if contigID in self.contigs else None)
-
- 
 
 	def parse_gff(self, inputGFF):
 		'''
@@ -170,7 +171,7 @@ class BamContig:
 		#this means the position is safe to evaluate, and it is not (problematically) polymorphic
 
 			if float(position_data['ratio_max2all']) >= float(dominant_frq_thrsh):
-				consensus_positions[pileupcolumn] = consensus_rule(position_data['base_freq'])
+				consensus_positions[pileupcolumn] = consensus_rule(dict((k,v) for k,v in position_data['base_freq'].items() if k != 'N'))
 
 		if len(consensus_positions) > 0 :
 			self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else noneCharacter) for position in range(1,self.length+1)])
