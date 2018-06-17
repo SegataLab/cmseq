@@ -421,10 +421,13 @@ class BamContig:
 					if tCoverage >= mincov:
 						coverage_positions[pileupcolumn.pos] = tCoverage
 
+
 		if (len(coverage_positions.keys())) > 0:
 			breadth = float(len(coverage_positions.keys()))/len(consid_r)
-			avgdepth = np.mean(coverage_positions.values())
-			mediandepth = np.median(coverage_positions.values())
+			vals = list(coverage_positions.values())
+			avgdepth = np.mean(vals)
+			mediandepth = np.median(vals)
+			
 			return (breadth,avgdepth,mediandepth,coverage_positions.values())
 		else: 
 			return (np.nan,np.nan,np.nan,[np.nan])
