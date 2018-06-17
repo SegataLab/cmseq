@@ -17,7 +17,7 @@ def bd_from_file(args):
 
 		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filterInputList=args.contig)
 
- 		print('Contig\tBreadth\tDepth_(avg)\tDepth_(median)')
+		print('Contig\tBreadth\tDepth_(avg)\tDepth_(median)')
 
 		all_coverage_values = []
 		for i in bf.get_contigs_obj():
