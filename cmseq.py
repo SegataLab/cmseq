@@ -323,13 +323,14 @@ class BamContig:
 				nuclAbundance,position = positionData
 				base_sum=sum(nuclAbundance)
 				base_max=float(max(nuclAbundance))
+				dominance = float(base_max) / float(base_sum)
 
-				if base_sum > mincov:
-					dominance = float(base_max) / float(base_sum)
+				if base_sum > mincov:	
 					dominanceList.append(dominance)
-		
 					tmpDict = dict((k,v) for k,v in zip(['A','C','G','T'],nuclAbundance))
-					bases = [k for k,v in sorted(tmpDict.items(),key= lambda x: x[1], reverse=True) if v>0]	
+					bases = [k for k,v in sorted(tmpDict.items(), key = lambda x: x[1], reverse=True) if v>0]	
+				else:
+					dominanceList.append(np.nan)
 			else:
 				dominanceList.append(np.nan)
 			
@@ -347,7 +348,6 @@ class BamContig:
 				codon_t2 = codon_s2.translate()
 
 				positionLabel = positionData[1] if positionData else 'ND'
-				
 				RD=None
 				if codon_t1 == "X" or codon_t2 == "X":
 					mutationStats['D?'] +=1
@@ -355,19 +355,14 @@ class BamContig:
 				elif codon_t1 != codon_t2:
 					mutationStats['DN'] +=1
 					RD="DN"
-
 				elif (codon_t1 == codon_t2) and (codon_s1 != codon_s2):
 					mutationStats['DS'] +=1
 					RD="DS"
 
-				#if we have a mutation, save it
-				if RD and positionData: explainList.append((positionLabel,RD,codon_s1,codon_s2, codon_t1,codon_t2))
-
-				#print positionData[1] if positionData else 'ND',codon_s1,codon_s2,codon_t1,codon_t2, "RD:",RD
 				codon_f1 = []
 				codon_f2 = []
 
-		return (dominanceList,mutationStats,explainList)
+		return (dominanceList,mutationStats)
 
 
 	def polymorphism_rate(self,mincov=CMSEQ_DEFAULTS.mincov,minqual=CMSEQ_DEFAULTS.minqual,pvalue=CMSEQ_DEFAULTS.poly_pvalue_threshold,error_rate=CMSEQ_DEFAULTS.poly_error_rate,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh):
