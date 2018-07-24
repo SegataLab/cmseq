@@ -324,8 +324,9 @@ class BamContig:
 				base_sum=sum(nuclAbundance)
 				base_max=float(max(nuclAbundance))
 				dominance = float(base_max) / float(base_sum)
-
+				
 				if base_sum > mincov:	
+					
 					dominanceList.append(dominance)
 					tmpDict = dict((k,v) for k,v in zip(['A','C','G','T'],nuclAbundance))
 					bases = [k for k,v in sorted(tmpDict.items(), key = lambda x: x[1], reverse=True) if v>0]	
