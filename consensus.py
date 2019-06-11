@@ -23,7 +23,10 @@ def consensus_from_file(args):
 
 	for i in bf.get_contigs_obj():
 
-		sq = i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual,dominant_frq_thrsh=args.dominant_frq_thrsh,noneCharacter='N')
+		
+		trimParam = tuple(args.trim.strip().split(':')) if args.trim else args.trim
+
+		sq = i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual,dominant_frq_thrsh=args.dominant_frq_thrsh,noneCharacter='N',trimReads=trimParam)
 		
 		if sq is not None:
 			lst.append(SeqRecord(Seq(sq, IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
@@ -41,5 +44,6 @@ if __name__ == "__main__":
 	parser.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: '+str(CMSEQ_DEFAULTS.minlen), type=int, default=CMSEQ_DEFAULTS.mincov)
 	parser.add_argument('--dominant_frq_thrsh', help='Cutoff for degree of `allele dominance` for a position to be considered polymorphic. Default: '+str(CMSEQ_DEFAULTS.poly_dominant_frq_thrsh), type=float, default=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh)
 	parser.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered. Default: '+str(CMSEQ_DEFAULTS.minlen),default=CMSEQ_DEFAULTS.minlen, type=int)
+	parser.add_argument('--trim', help='Trim the reads before computing the consensus. A value of 10:10 means that the first and last 10 positions of each read will be ignored. Default: '+str(CMSEQ_DEFAULTS.trimReads),default=CMSEQ_DEFAULTS.trimReads, type=str)
 	
 	consensus_from_file(parser.parse_args())

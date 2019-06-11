@@ -19,6 +19,7 @@ class CMSEQ_DEFAULTS:
 	poly_error_rate = 0.001
 	poly_pvalue_threshold = 0.01
 	poly_dominant_frq_thrsh = 0.8
+	trimReads = None
 
 
 class BamFile:
@@ -161,11 +162,11 @@ class BamContig:
 		else: 
 			return 'N'
 
-	def reference_free_consensus(self,consensus_rule=majority_rule,mincov=CMSEQ_DEFAULTS.mincov,minqual=CMSEQ_DEFAULTS.minqual,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,noneCharacter='-',BAM_tagFilter=None):
+	def reference_free_consensus(self,consensus_rule=majority_rule,mincov=CMSEQ_DEFAULTS.mincov,minqual=CMSEQ_DEFAULTS.minqual,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,noneCharacter='-',BAM_tagFilter=None, trimReads=None):
 
 		consensus_positions = {}
 
-		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,dominant_frq_thrsh=dominant_frq_thrsh,BAM_tagFilter=BAM_tagFilter).items():
+		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,dominant_frq_thrsh=dominant_frq_thrsh,BAM_tagFilter=BAM_tagFilter,trimReads=trimReads).items():
 		
 		#apply the rule only to the pilepup positions for which the major/other nucleotides ratio is high enough:
 		#this means the position is safe to evaluate, and it is not (problematically) polymorphic
@@ -495,16 +496,19 @@ class BamContig:
 #		plt.close()
 		
 #------------------------------------------------------------------------------	
-	def get_base_stats(self, min_read_depth=CMSEQ_DEFAULTS.mincov, min_base_quality=CMSEQ_DEFAULTS.minqual, error_rate=CMSEQ_DEFAULTS.poly_error_rate,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,BAM_tagFilter=None):
+	def get_base_stats(self, min_read_depth=CMSEQ_DEFAULTS.mincov, min_base_quality=CMSEQ_DEFAULTS.minqual, error_rate=CMSEQ_DEFAULTS.poly_error_rate,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,BAM_tagFilter=None,trimReads=None):
 		'''
 		get base frequencies and quality stats,
 		to use in get_all_base_values() and other functions
 		'''
 
-
 		from scipy import stats
 		from collections import defaultdict
 		import pickle,os
+
+		if trimReads:
+			mask_head_until = int(trimReads[0]) if (trimReads[0] is not None and trimReads[0] != '') else 0
+			mask_tail_before = int(trimReads[1]) if (trimReads[1] is not None and trimReads[1] != '') else 0
 
 		base_stats = defaultdict(dict) 
 
@@ -519,17 +523,21 @@ class BamContig:
 			#for each read composing the pile
 			for matched_read in base_pileup.pileups:
 				if not matched_read.is_del and not matched_read.is_refskip:
+
+
 					b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
 					q = matched_read.alignment.query_qualities[matched_read.query_position]	
-					
-					thisPositionBase = 'N'
+					#print("I am get_base_stats and this is read", matched_read.alignment.query_name, " (L=",matched_read.alignment.query_length," ) at position", matched_read.query_position, "it's a ", b)
 
-					if q >= min_base_quality and b in ATCG: #and int(matched_read.alignment.get_tag('AS')) >= 80 and int(matched_read.alignment.get_tag('XM')) <= 5:
-						if BAM_tagFilter is None:
-							thisPositionBase = b								
-						elif BAM_tagFilter and all(globals()[func](matched_read.alignment.get_tag(tag),limitValue) == True for (tag,func,limitValue) in BAM_tagFilter ):
-							thisPositionBase = b								
-							
+					thisPositionBase = 'N'
+					
+					if not trimReads or (trimReads and ((matched_read.query_position >= mask_head_until) and (matched_read.query_position <= (matched_read.alignment.query_length-mask_tail_before) ) ) ):
+						if q >= min_base_quality and b in ATCG: #and int(matched_read.alignment.get_tag('AS')) >= 80 and int(matched_read.alignment.get_tag('XM')) <= 5:
+							if BAM_tagFilter is None:
+								thisPositionBase = b								
+							elif BAM_tagFilter and all(globals()[func](matched_read.alignment.get_tag(tag),limitValue) == True for (tag,func,limitValue) in BAM_tagFilter ):
+								thisPositionBase = b								
+					#print("\t and the end value is ", thisPositionBase)
 					base_freq[thisPositionBase] += 1
 
 			# calculate quality stats, ignoring N's 
