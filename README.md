@@ -214,7 +214,7 @@ Provides the Reference Free consensus for the references in a BAM alignment file
 usage: consensus.py [-h] [-c REFERENCE ID] [-f] [--sortindex]
                     [--minqual MINQUAL] [--mincov MINCOV]
                     [--dominant_frq_thrsh DOMINANT_FRQ_THRSH]
-                    [--minlen MINLEN]
+                    [--minlen MINLEN] [--trim TRIM]
                     BAMFILE
 
 outputs the consensus in FASTA format. Non covered positions (or quality-
@@ -247,8 +247,9 @@ optional arguments:
                         to be considered polymorphic. Default: 0.8
   --minlen MINLEN       Minimum Reference Length for a reference to be
                         considered. Default: 0
-
-
+  --trim TRIM           Trim the reads before computing the consensus.
+                        A value of 10:10 means that the first and last 10 positions
+                        of each read will be ignored. Default: None
 ```
 
 
