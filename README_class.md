@@ -7,7 +7,7 @@
 
 Requires samtools (> 1.x), numpy, pysam, matplotlib and seaborn
  
-## Usage as Python Module ##
+## Use as Python Module ##
 
 ### class BamFile ###
 
@@ -74,6 +74,7 @@ The dictionary has this structre: {'A':0,'T':0,'C':0,'G':0,'N':0} and stores the
 The default function is: `lambda array: max(array, key=array.get)` (pure majority rule).
 The function is applied only to positions that meet the requirements of `minqual` and `mincov`. Other positions are reported as "-"
 
+* `trimReads`: a tuple specifying the range of each read to be skipped when computing the consensus. If set to (10,10) it means that the first and last 10 of each read will not be used to compute the consensus. Default is None, which means nothing will be trimmed. 
 Examples
 ```
 #!python
