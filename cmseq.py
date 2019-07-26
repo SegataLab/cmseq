@@ -5,12 +5,22 @@ import pysam
 import numpy as np
 import math
 import sys
-
+from scipy import stats
+from collections import defaultdict
+import pickle,os
 
 __author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it),	Nicolai Karcher'
-__version__ = '1.2'
-__date__ = '12 June 2018'
+__version__ = '1.2.2'
+__date__ = '25 July 2019'
 
+def _initt(terminating_,_consensus_bamFile,_consensus_args):
+	global terminating
+	global consensus_args
+	global consensus_bamFile
+	terminating = terminating_
+	consensus_args = _consensus_args
+	consensus_bamFile = _consensus_bamFile
+	
 
 class CMSEQ_DEFAULTS:
 	minqual = 30
@@ -24,9 +34,10 @@ class CMSEQ_DEFAULTS:
 
 class BamFile:
 	bam_handle = None
+	bamFile = None
 	contigs = {}
 
-	def __init__(self,bamFile,sort=False,index=False,stepper='nofilter',minlen=CMSEQ_DEFAULTS.minlen,filterInputList=None):
+	def __init__(self,bamFile,sort=False,index=False,stepper='nofilter',minlen=CMSEQ_DEFAULTS.minlen,filterInputList=None,minimumReadsAligning=None):
 		if not os.path.isfile(bamFile):
 			raise Exception(bamFile+' is not accessible, or is not a file')
 
@@ -37,28 +48,38 @@ class BamFile:
 		else: fp = bamFile
 
 		if index: pysam.index(fp)
+
+		self.bamFile = fp
 		
 		bamHandle = pysam.AlignmentFile(fp, "rb")
 		
 		self.bam_handle = bamHandle
 		
 		if filterInputList is not None:
-			from Bio import SeqIO
+			
 			toList=[]
 			if isinstance(filterInputList, list):
 				toList = filterInputList
 			
 			elif os.path.isfile(filterInputList):
+				from Bio import SeqIO
 				with open(filterInputList, "r") as infile:
 					for record in SeqIO.parse(infile, "fasta"):
 						toList.append(record.id)
 			else:
 				toList = [element for element in filterInputList.split(',')]
 
-			self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and r in toList))
-		else:
-			self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen))
+				if minimumReadsAligning:
+					self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and r in toList and bamHandle.count(contig=r,read_callback=stepper) >= minimumReadsAligning))
+				else:
+					self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and r in toList))
 
+		else:
+			if minimumReadsAligning:
+				self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and bamHandle.count(contig=r,read_callback=stepper) >= minimumReadsAligning))
+			else: 
+				self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen))
+			
 	def get_contigs(self): return iter(self.contigs.keys())
 	def get_contigs_obj(self): return iter(self.contigs.values())
 	def get_contig_by_label(self,contigID): return (self.contigs[contigID] if contigID in self.contigs else None)
@@ -131,9 +152,28 @@ class BamFile:
 		in_handle.close()
 		
 
-
+	def parallel_reference_free_consensus(self,ncores=4,**kwargs):
+		import multiprocessing as mp
+ 
+		terminating = mp.Event()
 		
+		with mp.Pool(initializer=_initt, initargs=(terminating,self.bamFile,kwargs),processes=ncores) as pool:
+			res= [x for x in pool.imap_unordered(BamFile._parallel_consensus_worker, self.contigs.keys())]
+		return res
 
+	@staticmethod
+	def _parallel_consensus_worker(contigName):
+
+		if not terminating.is_set():
+			try:
+				t=BamFile(consensus_bamFile,filterInputList=contigName)
+				return (contigName,t.get_contig_by_label(contigName).reference_free_consensus(**consensus_args))
+			except Exception as e:
+				terminating.set()
+				raise
+		else:
+			terminating.set()
+	
 class BamContig:
 
 	coverage = None
@@ -155,9 +195,27 @@ class BamContig:
 	def set_stepper(self,ns):
 		if ns in ['all','nofilter']: self.stepper = ns
 
-	def majority_rule(freq_array):
+
+	def majority_rule(data_array):
+		freq_array= data_array['base_freq']
 		
+
 		if any([v>0 for v in freq_array.values()]):
+			return max(sorted(freq_array), key=freq_array.get)
+		else: 
+			return 'N'
+
+	def majority_rule_polymorphicLoci(data_array):
+
+		# Masks the consensus sequence with "*" when a polymorphic locus is found according
+		# to dominant_frq_thrsh defined p-value
+		
+		freq_array= data_array['base_freq']
+		poly_pvalue= data_array['p']
+
+		if poly_pvalue <= 0.05: 
+			return "*"
+		elif any([v>0 for k,v in freq_array.items() if k != 'N']):
 			return max(sorted(freq_array), key=freq_array.get)
 		else: 
 			return 'N'
@@ -166,21 +224,20 @@ class BamContig:
 
 		consensus_positions = {}
 
-		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,dominant_frq_thrsh=dominant_frq_thrsh,BAM_tagFilter=BAM_tagFilter,trimReads=trimReads).items():
-		
-		#apply the rule only to the pilepup positions for which the major/other nucleotides ratio is high enough:
-		#this means the position is safe to evaluate, and it is not (problematically) polymorphic
-
-			if float(position_data['ratio_max2all']) >= float(dominant_frq_thrsh):
-				consensus_positions[pileupcolumn] = consensus_rule(dict((k,v) for k,v in position_data['base_freq'].items() if k != 'N'))
+		#print("A",mincov,minqual,dominant_frq_thrsh)
+		for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,dominant_frq_thrsh=dominant_frq_thrsh,BAM_tagFilter=BAM_tagFilter,trimReads=trimReads,error_rate=CMSEQ_DEFAULTS.poly_error_rate).items():
+			consensus_positions[pileupcolumn] = consensus_rule(position_data)
 
 		if len(consensus_positions) > 0 :
 			self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else noneCharacter) for position in range(1,self.length+1)])
 		else:
 			self.consensus = noneCharacter*self.length
 
-		del consensus_positions
+		#del consensus_positions
+
 		return self.consensus
+
+
 
 	def baseline_PSR(self,mincov=10,minqual=30,pvalue=0.01,error_rate=0.001,dominant_frq_thrsh=0.8,binom=None):
 		# This function estimates the polymorphic site rate over the input contig assuming that there are no truely polymorphic sites
@@ -192,7 +249,7 @@ class BamContig:
 		polymorphic_empirical_loci = 0
 
 		# Get coverage as well as values of contig
-		depthsList = self.get_all_base_values('base_cov', min_base_quality=minqual,min_read_depth=mincov)
+		depthsList = self.get_all_base_values('base_cov', min_base_qualit=yminqual,min_read_depth=mincov)
 
 		# Also get dominant allele frequency of contig
 		dominantFreq = self.get_all_base_values('ratio_max2all', min_base_quality=minqual,min_read_depth=mincov)
@@ -440,71 +497,16 @@ class BamContig:
 
 	def breadth_of_coverage(self,mincov=10,minqual=30):
 		return self.breadth_and_depth_of_coverage(mincov,minqual)[0]
-		#coverage_positions = {}
-		#ptl=0
-		#
-		#if minqual == 0:
-		#	for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
-		#		if len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]) >= mincov:
-		#			ptl += 1
-
-		#else:
-		#	for pileupcolumn in self.bam_handle.pileup(self.name,stepper=self.stepper):
-		#		#print minqual,len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]), len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ])
-		#		if len([1 for pileupread in pileupcolumn.pileups if not pileupread.is_del and not pileupread.is_refskip and pileupread.alignment.query_qualities[pileupread.query_position] >= args.minqual and pileupread.alignment.query_sequence[pileupread.query_position].upper() in ('A','T','C','G') ]) >= mincov:
-		#			ptl += 1
-		#
-		#return float(ptl)/self.length
-
-#	def plot_coverage(self,flavour='polar',path='./out.pdf',smooth=0,l_avoid=False,s_avoid=False,l_color='#000000',s_color='#000000'):
-#		
-#		import matplotlib
-#		matplotlib.use('Agg')
-#		import matplotlib.pyplot as plt 
-#		import numpy as np
-#		import seaborn as sns
-#		
-#		iret={}
-#		for column in self.bam_handle.pileup(self.name,stepper=self.stepper):
-#			iret[column.pos] = column.n
-#
-#		for i in range(0,self.length):
-#			if i not in iret: iret[i] = 0
-#
-#		
-#		if smooth == 0:
-#			y_smooth = iret.values()
-#		else: 
-#			box_pts = smooth
-#			y_smooth = np.convolve(iret.values(), (np.ones(box_pts)/box_pts), mode='same')
-#
-#		if flavour == 'polar':
-#			ax = plt.subplot(111, projection='polar')
-#			if not l_avoid: ax.plot([float(k)*2*np.pi/float(self.length) for k in iret.keys()],y_smooth,label='Coverage',linewidth=0.5,c=l_color,zorder=1)
-#			if not s_avoid: ax.scatter([float(k)*2*np.pi/float(self.length) for k in iret.keys()],y_smooth,label='Coverage',s=1,c=s_color, zorder=2)
-#			ax.grid(True)
-#			ax.set_xticklabels(['0', str(int(self.length/8)), str(int(self.length/4)), str(int(self.length*3/8)), str(int(self.length/2)), str(int(self.length*5/8)), str(int(self.length/4*3)), str(int(self.length*7/8))])
-#		else:
-#			if not l_avoid: plt.plot(iret.keys(),y_smooth,label='Coverage',linewidth=0.5,c=l_color,zorder=1)
-#			if not s_avoid: plt.scatter(iret.keys(),y_smooth,label='Coverage',s=1,c=s_color, zorder=2)
-#			plt.grid(True)
-#			plt.axis('tight')
-#			
-#
-#		plt.savefig(path)
-#		plt.clf()
-#		plt.close()
 		
 #------------------------------------------------------------------------------	
+
+	
 	def get_base_stats(self, min_read_depth=CMSEQ_DEFAULTS.mincov, min_base_quality=CMSEQ_DEFAULTS.minqual, error_rate=CMSEQ_DEFAULTS.poly_error_rate,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,BAM_tagFilter=None,trimReads=None):
 		'''
 		get base frequencies and quality stats,
 		to use in get_all_base_values() and other functions
 		'''
 
-		from scipy import stats
-		from collections import defaultdict
-		import pickle,os
 
 		if trimReads:
 			mask_head_until = int(trimReads[0]) if (trimReads[0] is not None and trimReads[0] != '') else 0
@@ -514,16 +516,20 @@ class BamContig:
 
 		ATCG=('A','T','C','G')
 
+
 		#for each position (column)
-		for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper):
+
+		
+		
+		for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper,min_base_quality=min_base_quality):
 			base_freq = {'A':0,'T':0,'C':0,'G':0,'N':0}
 			
 			pos=base_pileup.pos+1 # 1-based
 
+
 			#for each read composing the pile
 			for matched_read in base_pileup.pileups:
 				if not matched_read.is_del and not matched_read.is_refskip:
-
 
 					b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
 					q = matched_read.alignment.query_qualities[matched_read.query_position]	
@@ -532,12 +538,10 @@ class BamContig:
 					thisPositionBase = 'N'
 					
 					if not trimReads or (trimReads and ((matched_read.query_position >= mask_head_until) and (matched_read.query_position <= (matched_read.alignment.query_length-mask_tail_before) ) ) ):
-						if q >= min_base_quality and b in ATCG: #and int(matched_read.alignment.get_tag('AS')) >= 80 and int(matched_read.alignment.get_tag('XM')) <= 5:
-							if BAM_tagFilter is None:
+						if b in ATCG: 
+							if BAM_tagFilter is None or all(globals()[func](matched_read.alignment.get_tag(tag),limitValue) == True for (tag,func,limitValue) in BAM_tagFilter ):
 								thisPositionBase = b								
-							elif BAM_tagFilter and all(globals()[func](matched_read.alignment.get_tag(tag),limitValue) == True for (tag,func,limitValue) in BAM_tagFilter ):
-								thisPositionBase = b								
-					#print("\t and the end value is ", thisPositionBase)
+					
 					base_freq[thisPositionBase] += 1
 
 			# calculate quality stats, ignoring N's 
@@ -560,6 +564,7 @@ class BamContig:
 				base_stats[pos]['base_freq']=base_freq # dict: {'A':4,'T':1,'C':2,'G':0,'N':0}
 			
 		return base_stats
+
 	
 	def get_all_base_values(self, stats_value,  *f_args, **f_kwargs):
 		'''
