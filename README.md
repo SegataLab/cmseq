@@ -104,6 +104,70 @@ Extract breadth and depth of coverage for the references present in MYFASTA.fast
 breadth_depth.py -c MYFASTA.fasta mybam.sorted.bam
 ```
 
+## polymut.py - Polymorphic rate over protein-coding genes
+
+This function calculates polymorphic site rates over protein coding genes. It considers dominant and second-dominant alleles over protein-coding genes on the nucleotide level, translates the ORFs into proteins and then calculates and outputs the number of 
+synonymous and non-synonymous mutations (on the protein level) between the dominant and second-dominant protein sequences. 
+Positions with a ratio between second-dominant and dominant allele coverage smaller than dominant_frq_thrsh are considered non-variant. This function was used in the study by Pasolli et al., 2019 as an ad-hoc measure to calculate strain heterogeneity in metagenomes.
+Since the likelihood of finding more than one strain in the same gut varies strongly across gut commensals (as well as different within-species genetic diversity), 
+this function does not allow a rigorous classification of metagenomes into strain-mixed and non-strain-mixed, but it can be shown that - considering polymorphic site rates over i.e. core genes of any given speices - samples with a higher polymorphic site rate are more likely to
+harbour more than one strain. 
+
+Please supply a gff file from roary and make sure that the contig names between the bam file and the gff file can be matched.
+
+
+```
+usage: polymut.py [-h] [-c REFERENCE ID] [-f] [--sortindex] [--minlen MINLEN]
+                  [--minqual MINQUAL] [--mincov MINCOV]
+                  [--dominant_frq_thrsh DOMINANT_FRQ_THRSH]
+                  [--gff_file GFF_FILE]
+                  BAMFILE
+
+Reports the polymorpgic rate of each reference (polymorphic bases / total
+bases). Focuses only on covered regions (i.e. depth >= 1)
+
+positional arguments:
+  BAMFILE               The file on which to operate
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c REFERENCE ID, --contig REFERENCE ID
+                        Focus on a subset of references in the BAM file. Can
+                        be a list of references separated by commas or a FASTA
+                        file (the IDs are used to subset)
+  -f                    If set unmapped (FUNMAP), secondary (FSECONDARY), qc-
+                        fail (FQCFAIL) and duplicate (FDUP) are excluded. If
+                        unset ALL reads are considered (bedtools genomecov
+                        style). Default: unset
+  --sortindex           Sort and index the file
+  --minlen MINLEN       Minimum Reference Length for a reference to be
+                        considered. Default: 0
+  --minqual MINQUAL     Minimum base quality. Bases with quality score lower
+                        than this will be discarded. This is performed BEFORE
+                        --mincov. Default: 30
+  --mincov MINCOV       Minimum position coverage to perform the polymorphism
+                        calculation. Position with a lower depth of coverage
+                        will be discarded (i.e. considered as zero-coverage
+                        positions). This is calculated AFTER --minqual.
+                        Default:1
+  --dominant_frq_thrsh DOMINANT_FRQ_THRSH
+                        Cutoff for degree of `allele dominance` for a position
+                        to be considered polymorphic. Default: 0.8
+  --gff_file GFF_FILE   GFF file used to extract protein-coding genes
+
+```
+
+The functions prints the number of non-synonymous mutations, synonymous mutations and the total number of considered positions (total number of positions covered higher than the parameter specified with --mincov) for each entry in your bam file
+(or alternatively for each subset of entries/contigs supplied with -c)
+
+### Examples ###
+
+Calculate the number of non-synonymous, synonymous and the total number of considered positions (on the nucleotide level!) over your contig of interest.
+
+```
+python polymut.py -c "contig_of_interest" bam_of_interest.bam --mincov 10 --minqual 30 --dominant_frq_thrsh 0.8 --gff_file gff_from_roary.gff
+```
+
 ## poly.py - Polymorphic Rate
 
 Provides the Polymorphic-rate of each reference in a sorted and indexed BAMFILE. The polymorphic rate is defined as: number_of_polymorhpic_sites / number_of_total_nucleotides. Beware that *number_of_total_nucleotides* depends on --minqual and --mincov, as if a position is not covered (e.g. coverage = 0) will not be counted in the denominator.
