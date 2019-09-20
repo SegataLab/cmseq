@@ -96,7 +96,7 @@ class BamFile:
 
 		def rev_comp(string):
 			string = string.upper()
-			complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'} 
+			complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N' : 'N'} 
 			bases = list(string) 
 			bases = [complement[base] for base in bases]
 			bases.reverse()
