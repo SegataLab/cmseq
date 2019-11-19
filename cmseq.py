@@ -63,17 +63,20 @@ class BamFile:
 			
 			elif os.path.isfile(filterInputList):
 				from Bio import SeqIO
+				
 				with open(filterInputList, "r") as infile:
+
 					for record in SeqIO.parse(infile, "fasta"):
+						
 						toList.append(record.id)
 			else:
 				toList = [element for element in filterInputList.split(',')]
 
-				if minimumReadsAligning:
-					self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and r in toList and bamHandle.count(contig=r,read_callback=stepper) >= minimumReadsAligning))
-				else:
-					self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and r in toList))
-
+			if minimumReadsAligning:
+				self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and r in toList and bamHandle.count(contig=r,read_callback=stepper) >= minimumReadsAligning))
+			else:
+				self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and r in toList))
+			
 		else:
 			if minimumReadsAligning:
 				self.contigs = dict((r,BamContig(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and bamHandle.count(contig=r,read_callback=stepper) >= minimumReadsAligning))
