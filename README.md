@@ -13,7 +13,7 @@
 
 **Note: CMSeq can be used [as python module](README_class.md) as well**
 
-## breadth_depth.py - Breadth and Depth of coverage
+## Breadth and Depth of coverage with breadth_depth.py
 
 Provides breadth and depth of coverage the references of BAM alignment file, in tabular format. The file must be indexed and sorted (alternatively, --sortindex can be used).
 
@@ -104,7 +104,7 @@ Extract breadth and depth of coverage for the references present in MYFASTA.fast
 breadth_depth.py -c MYFASTA.fasta mybam.sorted.bam
 ```
 
-## polymut.py - Polymorphic rate over protein-coding genes
+## Polymorphic rate over protein-coding genes with polymut.py
 
 This function calculates polymorphic site rates over protein coding genes. It considers dominant and second-dominant alleles over protein-coding genes on the nucleotide level, translates the ORFs into proteins and then calculates and outputs the number of 
 synonymous and non-synonymous mutations (on the protein level) between the dominant and second-dominant protein sequences. 
@@ -168,7 +168,7 @@ Calculate the number of non-synonymous, synonymous and the total number of consi
 python polymut.py -c "contig_of_interest" bam_of_interest.bam --mincov 10 --minqual 30 --dominant_frq_thrsh 0.8 --gff_file gff_from_roary.gff
 ```
 
-## poly.py - Polymorphic Rate
+## Polymorphic Rate with poly.py
 
 Provides the Polymorphic-rate of each reference in a sorted and indexed BAMFILE. The polymorphic rate is defined as: number_of_polymorhpic_sites / number_of_total_nucleotides. Beware that *number_of_total_nucleotides* depends on --minqual and --mincov, as if a position is not covered (e.g. coverage = 0) will not be counted in the denominator.
 
@@ -264,7 +264,7 @@ poly.py --sortindex -c genome_1,genome_2 --dominant_frq_thrsh 0.7 mybam.unsorted
 ```
 
  
-## consensus.py - Reference Free (but guided) consensis
+## Reference Free (but guided) consensus with consensus.py
 
 Provides the Reference Free consensus for the references in a BAM alignment file, reconstructing the sequence from the raw reads, in FASTA format to standard output. The file must be indexed and sorted (alternatively, --sortindex can be used). Note that the length of the reconstructed sequence is bound to the original length of the reference. On that length, not all the positions may be covered. This can happen because:
 
