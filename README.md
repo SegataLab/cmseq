@@ -10,6 +10,7 @@
 * numpy
 * pysam
 * pandas
+* Biopython with bcbio-gff module
 
 **Note: CMSeq can be used [as python module](README_class.md) as well**
 
@@ -113,7 +114,7 @@ Since the likelihood of finding more than one strain in the same gut varies stro
 this function does not allow a rigorous classification of metagenomes into strain-mixed and non-strain-mixed, but it can be shown that - considering polymorphic site rates over i.e. core genes of any given speices - samples with a higher polymorphic site rate are more likely to
 harbour more than one strain. 
 
-Please supply a gff file from roary and make sure that the contig names between the bam file and the gff file can be matched.
+Please supply a gff file from Prokka and make sure that the contig names between the bam file and the gff file can be matched.
 
 
 ```
@@ -165,7 +166,7 @@ The functions prints the number of non-synonymous mutations, synonymous mutation
 Calculate the number of non-synonymous, synonymous and the total number of considered positions (on the nucleotide level!) over your contig of interest.
 
 ```
-python polymut.py -c "contig_of_interest" bam_of_interest.bam --mincov 10 --minqual 30 --dominant_frq_thrsh 0.8 --gff_file gff_from_roary.gff
+python polymut.py -c "contig_of_interest" bam_of_interest.bam --mincov 10 --minqual 30 --dominant_frq_thrsh 0.8 --gff_file gff_from_prokka.gff
 ```
 
 ## Polymorphic Rate with poly.py
