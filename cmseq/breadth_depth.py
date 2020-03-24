@@ -9,32 +9,7 @@ import argparse
 
 
 
-def bd_from_file(args):
-
-		#print vars(args)
-		si = True if args.sortindex else False
-		mode = 'all' if args.f else 'nofilter'
-
-		bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filterInputList=args.contig)
-
-		print('Contig\tBreadth\tDepth_(avg)\tDepth_(median)')
-
-		all_coverage_values = []
-		for i in bf.get_contigs_obj():
-			bd_result = i.breadth_and_depth_of_coverage(minqual=args.minqual,mincov=args.mincov,trunc=args.truncate)
-
-			if not all(np.isnan(x) for x in [bd_result[0],bd_result[1],bd_result[2]]):
-				print (i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2]))
-				all_coverage_values.extend(bd_result[3])
-
-		if np.all(np.isnan(all_coverage_values)):
-			print ("all_contigs"+'\t-\t'+str("NaN")+'\t'+str("NaN"))
-		else:
-			print ("all_contigs"+'\t-\t'+str(np.nanmean(all_coverage_values)) + '\t'+str(np.nanmedian(all_coverage_values)))
-
-
-if __name__ == "__main__":
-
+def bd_from_file():
 	parser = argparse.ArgumentParser(description="calculate the Breadth and Depth of coverage of BAMFILE.")
 
 	parser.add_argument('BAMFILE', help='The file on which to operate')
@@ -46,4 +21,28 @@ if __name__ == "__main__":
 	parser.add_argument('--mincov', help='Minimum position coverage to perform the polymorphism calculation. Position with a lower depth of coverage will be discarded (i.e. considered as zero-coverage positions). This is calculated AFTER --minqual. Default: 1', type=int, default=CMSEQ_DEFAULTS.mincov)
 	parser.add_argument('--truncate', help='Number of nucleotides that are truncated at either contigs end before calculating coverage values.', type=float, default=0)
 
-	bd_from_file(parser.parse_args())
+	#print vars(args)
+	args = parser.parse_args()
+	si = True if args.sortindex else False
+	mode = 'all' if args.f else 'nofilter'
+
+	bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filterInputList=args.contig)
+
+	print('Contig\tBreadth\tDepth_(avg)\tDepth_(median)')
+
+	all_coverage_values = []
+	for i in bf.get_contigs_obj():
+		bd_result = i.breadth_and_depth_of_coverage(minqual=args.minqual,mincov=args.mincov,trunc=args.truncate)
+
+		if not all(np.isnan(x) for x in [bd_result[0],bd_result[1],bd_result[2]]):
+			print (i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2]))
+			all_coverage_values.extend(bd_result[3])
+
+	if np.all(np.isnan(all_coverage_values)):
+		print ("all_contigs"+'\t-\t'+str("NaN")+'\t'+str("NaN"))
+	else:
+		print ("all_contigs"+'\t-\t'+str(np.nanmean(all_coverage_values)) + '\t'+str(np.nanmedian(all_coverage_values)))
+
+
+if __name__ == "__main__":
+	bd_from_file()
