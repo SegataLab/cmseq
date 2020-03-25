@@ -3,7 +3,7 @@ from setuptools.command.install import install
 from io import open
 import os
 
-install_requires = ["numpy", "pysam", "pandas", "biopython", "bcbio-gff"]
+install_requires = ["numpy", "scipy", "pysam", "pandas", "biopython", "bcbio-gff"]
 setuptools.setup(
     name='CMSeq',
     version='1.0.0',

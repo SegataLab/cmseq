@@ -1,12 +1,11 @@
 #!/usr/bin/env python
-
-from cmseq import CMSEQ_DEFAULTS
-from cmseq import BamFile
-
 import pandas as pd
 import numpy as np
 import argparse
 import sys
+
+from .cmseq import CMSEQ_DEFAULTS
+from .cmseq import BamFile
 
 def polymut_from_file():
 	parser = argparse.ArgumentParser(description="Reports the polymorpgic rate of each reference (polymorphic bases / total bases). Focuses only on covered regions (i.e. depth >= 1)")

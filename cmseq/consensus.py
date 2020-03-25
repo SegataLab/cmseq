@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-
-from cmseq import CMSEQ_DEFAULTS
-from cmseq import BamFile
-
 import pandas as pd
 import numpy as np
 import argparse
@@ -11,6 +7,9 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
+
+from .cmseq import CMSEQ_DEFAULTS
+from .cmseq import BamFile
 
 def consensus_from_file():
 	parser = argparse.ArgumentParser(description="outputs the consensus in FASTA format. Non covered positions (or quality-trimmed positions) are reported as a dashes: -")

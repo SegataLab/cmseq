@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 from __future__ import print_function
-from cmseq import CMSEQ_DEFAULTS
-from cmseq import BamFile
+
+from .cmseq import CMSEQ_DEFAULTS
+from .cmseq import BamFile
 
 import pandas as pd
 import numpy as np
