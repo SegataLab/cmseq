@@ -19,7 +19,7 @@ setuptools.setup(
             'poly.py = cmseq.poly:poly_from_file'
         ]
     },
-    description='',
-    long_description=open('README.md').read(),
+    description='Set of utilities on sequences and BAM files',
+    long_description='Set of utilities on sequences and BAM files'
     install_requires=install_requires
 )
