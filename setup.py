@@ -20,6 +20,6 @@ setuptools.setup(
         ]
     },
     description='Set of utilities on sequences and BAM files',
-    long_description='Set of utilities on sequences and BAM files'
+    long_description='Set of utilities on sequences and BAM files',
     install_requires=install_requires
 )
