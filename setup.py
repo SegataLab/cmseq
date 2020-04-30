@@ -20,6 +20,7 @@ setuptools.setup(
         ]
     },
     description='',
+    long_description_content_type='text/markdown',
     long_description=open('README.md').read(),
     install_requires=install_requires
 )
