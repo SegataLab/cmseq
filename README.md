@@ -218,12 +218,13 @@ optional arguments:
 
 The output is strucutred as follows:
 
-
-|referenceID|dominant_allele_distr_mean|dominant_allele_distr_perc_10|…|dominant_allele_distr_sd|tot_covered_bases|tot_polymorphic_bases|polymorphic_rate|
+```
+|referenceID|dominant_allele_distr_mean|dominant_allele_distr_perc_10|...|dominant_allele_distr_sd|tot_covered_bases|tot_polymorphic_bases|polymorphic_rate|
 |----|----|----|----|----|----|----|----|----|
-|EF401177.1.1491|-|-…|-|151.00|0.00|0.00|
-|EF405039.1.1494|0.65|0.67|…|0.04|151.00|13.00|0.09|
-|-GENOME-|0.65|0.67|…|0.04|302.00|13.00|0.04|
+|EF401177.1.1491|-|-...|-|151.00|0.00|0.00|
+|EF405039.1.1494|0.65|0.67|...|0.04|151.00|13.00|0.09|
+|-GENOME-|0.65|0.67|...|0.04|302.00|13.00|0.04|
+```
 
 As for ``breadh_depth.py``, also the polymorphic rate analyisis is subjected to ``mincov``, ``minqual``, and ``minlen``. Additionally, two parameters can be set to decide when a site is polymorphic:
 
@@ -272,7 +273,7 @@ Provides the Reference Free consensus for the references in a BAM alignment file
 * there are no reads mapping to the position
 * there are too few reads (*i.e < ``mincov``*) mapping to the position
 * the reads that map to the position have a low quality (*i.e. < ``minqual``*)
-* the distribution of nucleotides at that position is potentially problematic (*i.e. dominant_allele_frequency < ``dominant_frq_thrsh``*): in this case, the position is excluded to reduce noise.
+* the distribution of nucleotides at that position is potentially problematic (*i.e. dominant_allele_frequency < ``dominant_frq_thrsh``*): in this case, the position is excluded to reduce noise.  
 
 
 ```
