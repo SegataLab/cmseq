@@ -6,7 +6,7 @@ import os
 install_requires = ["numpy", "scipy", "pysam", "pandas", "biopython", "bcbio-gff"]
 setuptools.setup(
     name='CMSeq',
-    version='1.0.0',
+    version='1.0.1',
     author='Moreno Zolfo',
     author_email='moreno.zolfo@unitn.it',
     url='http://github.com/SegataLab/cmseq/',
