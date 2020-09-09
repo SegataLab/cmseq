@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import pysam,sys
 import argparse
 import numpy as np
