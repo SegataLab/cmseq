@@ -423,6 +423,6 @@ Extract the consensus of genome from a BAM file, in the scenario of ancient meta
 
 
 ```
-consensus_aDNA.py --mincov 5 -r GCA_001639275_SGB720.fna --pos_specific_prob_tab Stats_out_MCMC_correct_prob.csv --pos_damage_prob_thrsh 0.95 mybam.sorted.bam 
+consensus_aDNA.py --mincov 5 -r reference.fna --pos_specific_prob_tab Stats_out_MCMC_correct_prob.csv --pos_damage_prob_thrsh 0.95 mybam.sorted.bam 
 ```
 
