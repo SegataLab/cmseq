@@ -418,3 +418,11 @@ Same as above, but a FASTA file is used to filter references instead:
 ```
 consensus.py --mincov 5 --minqual 30 -c FILTER_FASTA.fasta --dominant_frq_thrsh 0.5 mybam.sorted.bam
 ```
+
+Extract the consensus of genome from a BAM file, in the scenario of ancient metagenomics study. Positions with coverage lower than 5 and damage probability (Stats_out_MCMC_correct_prob.csv from mapDamage2) higher than 0.95 are ignored.
+
+
+```
+consensus_aDNA.py --mincov 5 -r GCA_001639275_SGB720.fna --pos_specific_prob_tab Stats_out_MCMC_correct_prob.csv --pos_damage_prob_thrsh 0.95 mybam.sorted.bam 
+```
+
