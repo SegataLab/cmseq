@@ -5,7 +5,6 @@ import sys
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
 
 from .cmseq import CMSEQ_DEFAULTS
 from .cmseq import BamFile
@@ -39,7 +38,7 @@ def consensus_from_file():
 		sq = i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual,dominant_frq_thrsh=args.dominant_frq_thrsh,noneCharacter='N',trimReads=trimParam)
 		
 		if sq is not None:
-			lst.append(SeqRecord(Seq(sq, IUPAC.IUPACAmbiguousDNA), id=i.name+"_consensus", description=''))
+			lst.append(SeqRecord(Seq(sq), id=i.name+"_consensus", description=''))
 	SeqIO.write(lst,sys.stdout,'fasta')
 
 

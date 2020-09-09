@@ -9,9 +9,9 @@ from scipy import stats
 from collections import defaultdict
 import pickle,os
 
-__author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it),	Nicolai Karcher'
-__version__ = '1.2.2'
-__date__ = '25 July 2019'
+__author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it), Nicolai Karcher, Kun Huang'
+__version__ = '1.0.2'
+__date__ = '9 September 2020'
 
 def _initt(terminating_,_consensus_bamFile,_consensus_args):
 	global terminating
@@ -363,7 +363,7 @@ class BamContig:
 	def easy_polymorphism_rate(self,mincov=CMSEQ_DEFAULTS.mincov,minqual=CMSEQ_DEFAULTS.minqual,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh):
 
 		from Bio.Seq import Seq
-		from Bio.Alphabet import IUPAC
+		#from Bio.Alphabet import IUPAC
 
 		bases = self.get_base_stats_for_poly(minqual=minqual)
 		
@@ -404,8 +404,8 @@ class BamContig:
 
 			if len(codon_f1) == 3 and len(codon_f2) == 3:
 
-				codon_s1 = Seq(''.join(codon_f1),IUPAC.ambiguous_dna)
-				codon_s2 = Seq(''.join(codon_f2),IUPAC.ambiguous_dna)
+				codon_s1 = Seq(''.join(codon_f1))
+				codon_s2 = Seq(''.join(codon_f2))
 				codon_t1 = codon_s1.translate()
 				codon_t2 = codon_s2.translate()
 
