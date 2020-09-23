@@ -1,8 +1,6 @@
 # CMSeq #
  
-* Provides interface for .bam files
-* Reference free consensus
-* Breadth and Depth of coverage
+CMSeq is a set of commands to provide an interface to .bam files for coverage and sequence consensus.
 
 **Requires:**
 
@@ -10,7 +8,16 @@
 * numpy
 * pysam
 * pandas
-* Biopython with bcbio-gff module
+* Biopython with bcbio-gff module _(warning: Biopython <= 1.76 is required for `polymut.py`)_
+
+
+## Functions
+
+* [Breadth and Depth of Coverage](#breadth-and-depth-of-coverage-with-breadth_depthpy)
+* [Polymorphic Rate on CDS](#polymorphic-rate-over-protein-coding-genes-with-polymutpy)
+* [Polymorphic Rate on the whole genome](#polymorphic-rate-with-polypy)
+* [Polymorphic Rate on the whole genome](#polymorphic-rate-with-polypy)
+* [Reference free consensus](#reference-free-but-guided-consensus-with-consensuspy)
 
 **Note: CMSeq can be used [as python module](README_class.md) as well**
 
@@ -107,12 +114,15 @@ breadth_depth.py -c MYFASTA.fasta mybam.sorted.bam
 
 ## Polymorphic rate over protein-coding genes with polymut.py
 
+**Warning:** Biopython <= 1.76 is required for `polymut.py`
+
 This function calculates polymorphic site rates over protein coding genes. It considers dominant and second-dominant alleles over protein-coding genes on the nucleotide level, translates the ORFs into proteins and then calculates and outputs the number of 
 synonymous and non-synonymous mutations (on the protein level) between the dominant and second-dominant protein sequences. 
-Positions with a ratio between second-dominant and dominant allele coverage smaller than dominant_frq_thrsh are considered non-variant. This function was used in the study by Pasolli et al., 2019 as an ad-hoc measure to calculate strain heterogeneity in metagenomes.
-Since the likelihood of finding more than one strain in the same gut varies strongly across gut commensals (as well as different within-species genetic diversity), 
-this function does not allow a rigorous classification of metagenomes into strain-mixed and non-strain-mixed, but it can be shown that - considering polymorphic site rates over i.e. core genes of any given speices - samples with a higher polymorphic site rate are more likely to
-harbour more than one strain. 
+Positions with a ratio between second-dominant and dominant allele coverage smaller than dominant_frq_thrsh are considered non-variant.
+
+This function was used in [Pasolli et al., 2019](https://pubmed.ncbi.nlm.nih.gov/30661755/) as an ad-hoc measure to calculate strain heterogeneity in metagenomes.
+
+Since the likelihood of finding more than one strain in the same gut varies strongly across gut commensals (as well as different within-species genetic diversity), this function does not allow a rigorous classification of metagenomes into strain-mixed and non-strain-mixed, but it can be shown that - considering polymorphic site rates over i.e. core genes of any given speices - samples with a higher polymorphic site rate are more likely to harbour more than one strain. 
 
 Please supply a gff file from Prokka and make sure that the contig names between the bam file and the gff file can be matched.
 
@@ -418,6 +428,8 @@ Same as above, but a FASTA file is used to filter references instead:
 ```
 consensus.py --mincov 5 --minqual 30 -c FILTER_FASTA.fasta --dominant_frq_thrsh 0.5 mybam.sorted.bam
 ```
+
+### Ancient DNA consensus 
 
 Extract the consensus of genome from a BAM file, in the scenario of ancient metagenomics study. Positions with coverage lower than 5 and damage probability (Stats_out_MCMC_correct_prob.csv from mapDamage2) higher than 0.95 are ignored.
 
