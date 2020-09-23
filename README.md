@@ -12,19 +12,20 @@ CMSeq is a set of commands to provide an interface to .bam files for coverage an
 
 ## Installation
 
-You can install CMSeq through source & pip:
+[![PyPi version](https://pypip.in/v/CMSeq/badge.png)](https://crate.io/packages/CMSeq/) [![Anaconda-Server Badge](https://anaconda.org/bioconda/cmseq/badges/version.svg)](https://anaconda.org/bioconda/cmseq) [![Anaconda-Server Badge](https://anaconda.org/bioconda/cmseq/badges/installer/conda.svg)](https://conda.anaconda.org/bioconda)
+
+### Install via source and pip ###
 
 ```
 git clone https://github.com/SegataLab/cmseq.git`
 pip install .
 ```
 
-or through pip:
+### Install via PyPi ###
 
 `pip install CMSeq`
 
-
-or through Bioconda:
+### Install via Bioconda ###
 
 `conda install -c bioconda cmseq`
 
