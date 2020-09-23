@@ -104,55 +104,58 @@ class BamFile:
 			bases = [complement[base] for base in bases]
 			bases.reverse()
 			return ''.join(bases)
-
-		in_file = inputGFF
-		in_handle = open(in_file)
-		#gene_locations = {}
+ 
 		try:
-			parsed_gff = GFF.parse(in_handle)
+			with open(inputGFF) as in_handle:
+				_ = next(GFF.parse(in_handle))
 		except:
 			print ('Parsing of GFF failed. This is probably because your biopython version is too new. Try downgrading to 1.76 or older')
-		for rec in GFF.parse(in_handle):
-			tmp = []
-			for r in rec.features:
-				if "minced" in r.qualifiers['source'][0] or "Minced" in r.qualifiers['source'][0]:
-					# This catches CRISPR repeats.
-					continue
-				if r.sub_features:
-					prodigal_bool = 'Prodigal' in r.sub_features[0].qualifiers['source'][0] or 'prodigal' in r.sub_features[0].qualifiers['source'][0]
-				else:
-					prodigal_bool = 'Prodigal' in r.qualifiers['source'][0] or 'prodigal' in r.qualifiers['source'][0]
-				
-				if prodigal_bool:
-					# Prokka not only finds protein sequences, but also t-/r-RNA sequences. In order to only parse protein coding sequences,
-					# I search for Prodigal/Prodigal in the source entry of the sub_features attribute.
+			sys.exit(1)
+
+		with open(inputGFF) as in_handle:
+		
+			for rec in GFF.parse(in_handle):
+				tmp = []
+				for r in rec.features:
+					if "minced" in r.qualifiers['source'][0] or "Minced" in r.qualifiers['source'][0]:
+						# This catches CRISPR repeats.
+						continue
+					if r.sub_features:
+						prodigal_bool = 'Prodigal' in r.sub_features[0].qualifiers['source'][0] or 'prodigal' in r.sub_features[0].qualifiers['source'][0]
+					else:
+						prodigal_bool = 'Prodigal' in r.qualifiers['source'][0] or 'prodigal' in r.qualifiers['source'][0]
 					
-					# the sub_features attribute of a seq_record object is apparently deprecated. I couldn't find any other way to access
-					# the required information, though. Should probably be fixed when I can.
-					indices = str(r.location).split('[')[1].split(']')[0].split(':')
-					indices = [int(x) for x in indices]
-					sense = str(r.location).split('(')[1].split(')')[0]
-					if sense == "-":
-						gene_seq = rev_comp(rec.seq[indices[0]:indices[1]])
-					else:
-						gene_seq = rec.seq[indices[0]:indices[1]]
+					if prodigal_bool:
+						# Prokka not only finds protein sequences, but also t-/r-RNA sequences. In order to only parse protein coding sequences,
+						# I search for Prodigal/Prodigal in the source entry of the sub_features attribute.
+						
+						# the sub_features attribute of a seq_record object is apparently deprecated. I couldn't find any other way to access
+						# the required information, though. Should probably be fixed when I can.
+						indices = str(r.location).split('[')[1].split(']')[0].split(':')
+						indices = [int(x) for x in indices]
+						sense = str(r.location).split('(')[1].split(')')[0]
+						if sense == "-":
+							gene_seq = rev_comp(rec.seq[indices[0]:indices[1]])
+						else:
+							gene_seq = rec.seq[indices[0]:indices[1]]
 
-					if (str(gene_seq[0:3]) == "ATG" or str(gene_seq[0:3]) == "GTG" or str(gene_seq[0:3]) == "TTG"):
-						pass
-					else:
-						warnings.warn(str(r.id) + " doesn't start with a common start codon. Beware. Continuing.")
+						if (str(gene_seq[0:3]) == "ATG" or str(gene_seq[0:3]) == "GTG" or str(gene_seq[0:3]) == "TTG"):
+							pass
+						else:
+							warnings.warn(str(r.id) + " doesn't start with a common start codon. Beware. Continuing.")
 
-					if (str(gene_seq[-3:]) == "TAG" or str(gene_seq[-3:]) == "TAA" or str(gene_seq[-3:]) == "TGA"):
-						pass
-					else:
-						warnings.warn(str(r.id) + " doesn't stop with a usual stop codon. Beware. Continuing.")
-					tmp.append((indices, sense))
-			
-			if str(rec.id) in self.contigs:
-				self.contigs[str(rec.id)].annotations.append(tmp)
-			else:
-				warnings.warn(str(rec.id) + " is not tracked by the BAMFile.")
-		in_handle.close()
+						if (str(gene_seq[-3:]) == "TAG" or str(gene_seq[-3:]) == "TAA" or str(gene_seq[-3:]) == "TGA"):
+							pass
+						else:
+							warnings.warn(str(r.id) + " doesn't stop with a usual stop codon. Beware. Continuing.")
+						tmp.append((indices, sense))
+				
+				if str(rec.id) in self.contigs:
+					self.contigs[str(rec.id)].annotations.append(tmp)
+				else:
+					warnings.warn(str(rec.id) + " is not tracked by the BAMFile.")
+
+		
 		
 
 	def parallel_reference_free_consensus(self,ncores=4,**kwargs):
