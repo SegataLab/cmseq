@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 from __future__ import print_function
 import os
 import pysam
@@ -110,8 +110,8 @@ class BamFile:
 		#gene_locations = {}
 		try:
 			parsed_gff = GFF.parse(in_handle)
-		except AttributeError:
-			print ('Parsing of GFF failed. This is probably because your biopython version is too new. Try downgrading to 1.67.')
+		except:
+			print ('Parsing of GFF failed. This is probably because your biopython version is too new. Try downgrading to 1.76 or older')
 		for rec in GFF.parse(in_handle):
 			tmp = []
 			for r in rec.features:
