@@ -10,6 +10,18 @@ CMSeq is a set of commands to provide an interface to .bam files for coverage an
 * pandas
 * Biopython with bcbio-gff module _(warning: Biopython <= 1.76 is required for `polymut.py`)_
 
+## Installation
+
+You can install CMSeq through pip:
+
+```
+git clone https://github.com/SegataLab/cmseq.git
+pip install .
+```
+
+or through Bioconda:
+
+`conda install -c bioconda cmseq`
 
 ## Functions
 
