@@ -14,8 +14,10 @@ CMSeq is a set of commands to provide an interface to .bam files for coverage an
 
 You can install CMSeq through source & pip:
 
-`git clone https://github.com/SegataLab/cmseq.git`
-`pip install .`
+```
+git clone https://github.com/SegataLab/cmseq.git`
+pip install .
+```
 
 or through pip:
 
