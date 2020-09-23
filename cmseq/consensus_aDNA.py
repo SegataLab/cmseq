@@ -19,7 +19,7 @@ from Bio.SeqRecord import SeqRecord
 
 
 __author__ = 'Kun D. Huang (kun.huang@unitn.it), Moreno Zolfo (moreno.zolfo@unitn.it)'
-__version__ = '1.0'
+__version__ = '1.0.3'
 __date__ = '09 September 2020'
 
 class CMSEQ_DEFAULTS_Ancient(CMSEQ_DEFAULTS):
