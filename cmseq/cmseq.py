@@ -9,9 +9,9 @@ from scipy import stats
 from collections import defaultdict
 import pickle,os
 
-__author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it), Nicolai Karcher, Kun Huang'
-__version__ = '1.0.2'
-__date__ = '9 September 2020'
+__author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it), Nicolai Karcher (nicolai.karcher@unitn.it), Kun Huang (kun.huang@unitn.it)'
+__version__ = '1.0.3'
+__date__ = '23 September 2020'
 
 def _initt(terminating_,_consensus_bamFile,_consensus_args):
 	global terminating
