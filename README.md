@@ -186,8 +186,13 @@ optional arguments:
 
 ```
 
-The functions prints the number of non-synonymous mutations, synonymous mutations and the total number of considered positions (total number of positions covered higher than the parameter specified with --mincov) for each entry in your bam file
-(or alternatively for each subset of entries/contigs supplied with -c)
+The functions prints three values:
+* the total number of non-synonymous mutations
+* the total number of synonymous mutations
+* the total number of considered positions (total number of positions covered higher than the parameter specified with --mincov)
+
+Please note that this function is meant to be used on multi-contig genomes, so **polymut.py reports the sum of non-synonimous and synonimous positions** for all the contigs considered. If you specify a list of contigs with `-c`, only those will be considered. 
+
 
 ### Examples ###
 
