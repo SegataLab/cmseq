@@ -34,7 +34,6 @@ pip install .
 * [Breadth and Depth of Coverage](#breadth-and-depth-of-coverage-with-breadth_depthpy)
 * [Polymorphic Rate on CDS](#polymorphic-rate-over-protein-coding-genes-with-polymutpy)
 * [Polymorphic Rate on the whole genome](#polymorphic-rate-with-polypy)
-* [Polymorphic Rate on the whole genome](#polymorphic-rate-with-polypy)
 * [Reference free consensus](#reference-free-but-guided-consensus-with-consensuspy)
 
 **Note: CMSeq can be used [as python module](README_class.md) as well**
