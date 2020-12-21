@@ -10,6 +10,7 @@ setuptools.setup(
     author='Moreno Zolfo',
     author_email='moreno.zolfo@unitn.it',
     url='http://github.com/SegataLab/cmseq/',
+    license = 'LICENSE.txt',
     packages=setuptools.find_packages(),
     entry_points={
         'console_scripts': [
