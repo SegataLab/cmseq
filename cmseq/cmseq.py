@@ -114,6 +114,10 @@ class BamFile:
 
         with open(inputGFF) as in_handle:
             for rec in GFF.parse(in_handle):
+                if str(rec.id) not in self.contigs:
+                    logger.warn(f"{rec.id} is not tracked by the BAMFile.")
+                    continue
+
                 tmp = []
                 for r in rec.features:
                     if "minced" in r.qualifiers['source'][0] or "Minced" in r.qualifiers['source'][0]:
@@ -145,10 +149,8 @@ class BamFile:
                             logger.warn(f"{r.id} doesn't stop with a usual stop codon. Beware. Continuing.")
                         tmp.append((indices, sense))
 
-                if str(rec.id) in self.contigs:
-                    self.contigs[str(rec.id)].annotations.append(tmp)
-                else:
-                    logger.warn(f"{rec.id} is not tracked by the BAMFile.")
+                self.contigs[str(rec.id)].annotations.append(tmp)
+
 
     def parallel_reference_free_consensus(self,ncores=4,**kwargs):
         import multiprocessing as mp
