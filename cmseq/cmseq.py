@@ -5,6 +5,8 @@ import os
 import logging
 from collections import defaultdict
 from typing import List, Union
+import multiprocessing as mp
+from scipy import stats
 
 import numpy as np
 import pysam
@@ -151,31 +153,27 @@ class BamFile:
 
                 self.contigs[str(rec.id)].annotations.append(tmp)
 
-
-    def parallel_reference_free_consensus(self,ncores=4,**kwargs):
-        import multiprocessing as mp
-
+    def parallel_reference_free_consensus(self, ncores=4, **kwargs):
         terminating = mp.Event()
 
-        with mp.Pool(initializer=_initt, initargs=(terminating,self.bamFile,kwargs),processes=ncores) as pool:
-            res= [x for x in pool.imap_unordered(BamFile._parallel_consensus_worker, self.contigs.keys())]
+        with mp.Pool(initializer=_initt, initargs=(terminating, self.bamFile, kwargs), processes=ncores) as pool:
+            res = [x for x in pool.imap_unordered(BamFile._parallel_consensus_worker, self.contigs.keys())]
         return res
 
     @staticmethod
     def _parallel_consensus_worker(contigName):
-
         if not terminating.is_set():
             try:
-                t=BamFile(consensus_bamFile,filterInputList=contigName)
-                return (contigName,t.get_contig_by_label(contigName).reference_free_consensus(**consensus_args))
-            except Exception as e:
+                t = BamFile(consensus_bamFile, filterInputList=contigName)
+                return (contigName, t.get_contig_by_label(contigName).reference_free_consensus(**consensus_args))
+            except Exception:
                 terminating.set()
                 raise
         else:
             terminating.set()
 
-class BamContig:
 
+class BamContig:
     coverage = None
     consensus = ''
     name = None
@@ -183,76 +181,78 @@ class BamContig:
     stepper = 'nofilter'
     annotations = None
 
-    def __init__(self,bamHandle,contigName,contigLength,stepper='nofilter'):
-
+    def __init__(self, bamHandle, contigName, contigLength, stepper='nofilter'):
         self.name = contigName
         self.length = contigLength
         self.bam_handle = bamHandle
-        self.stepper=stepper
+        self.stepper = stepper
         self.annotations = []
 
-
-    def set_stepper(self,ns):
-        if ns in ['all','nofilter']: self.stepper = ns
-
+    def set_stepper(self, ns):
+        if ns in ['all', 'nofilter']:
+            self.stepper = ns
 
     def majority_rule(data_array):
-        freq_array= data_array['base_freq']
+        freq_array = data_array['base_freq']
 
-
-        if any([v>0 for v in freq_array.values()]):
+        if any(v > 0 for v in freq_array.values()):
             return max(sorted(freq_array), key=freq_array.get)
         else:
             return 'N'
 
     def majority_rule_polymorphicLoci(data_array):
-
         # Masks the consensus sequence with "*" when a polymorphic locus is found according
         # to dominant_frq_thrsh defined p-value
 
-        freq_array= data_array['base_freq']
-        poly_pvalue= data_array['p']
+        freq_array = data_array['base_freq']
+        poly_pvalue = data_array['p']
 
         if poly_pvalue <= 0.05:
             return "*"
-        elif any([v>0 for k,v in freq_array.items() if k != 'N']):
+        elif any([v > 0 for k, v in freq_array.items() if k != 'N']):
             return max(sorted(freq_array), key=freq_array.get)
         else:
             return 'N'
 
-    def reference_free_consensus(self,consensus_rule=majority_rule,mincov=CMSEQ_DEFAULTS.mincov,minqual=CMSEQ_DEFAULTS.minqual,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,noneCharacter='-',BAM_tagFilter=None, trimReads=None):
-
+    def reference_free_consensus(self, consensus_rule=majority_rule,
+                                 mincov=CMSEQ_DEFAULTS.mincov, minqual=CMSEQ_DEFAULTS.minqual,
+                                 dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,
+                                 noneCharacter='-', BAM_tagFilter=None, trimReads=None):
         consensus_positions = {}
 
         #print("A",mincov,minqual,dominant_frq_thrsh)
-        for pileupcolumn,position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,dominant_frq_thrsh=dominant_frq_thrsh,BAM_tagFilter=BAM_tagFilter,trimReads=trimReads,error_rate=CMSEQ_DEFAULTS.poly_error_rate).items():
+        for pileupcolumn, position_data in self.get_base_stats(min_read_depth=mincov, min_base_quality=minqual,
+                                                               dominant_frq_thrsh=dominant_frq_thrsh,
+                                                               BAM_tagFilter=BAM_tagFilter,
+                                                               trimReads=trimReads,
+                                                               error_rate=CMSEQ_DEFAULTS.poly_error_rate).items():
             consensus_positions[pileupcolumn] = consensus_rule(position_data)
 
         if len(consensus_positions) > 0 :
-            self.consensus = ''.join([(consensus_positions[position] if position in consensus_positions else noneCharacter) for position in range(1,self.length+1)])
+            self.consensus = ''.join(((consensus_positions[position]
+                                      if position in consensus_positions else noneCharacter)
+                                      for position in range(1, self.length + 1)))
         else:
-            self.consensus = noneCharacter*self.length
+            self.consensus = noneCharacter * self.length
 
         #del consensus_positions
-
         return self.consensus
 
-
-
-    def baseline_PSR(self,mincov=10,minqual=30,pvalue=0.01,error_rate=0.001,dominant_frq_thrsh=0.8,binom=None):
-        # This function estimates the polymorphic site rate over the input contig assuming that there are no truely polymorphic sites
-        # (Meaning that all observed polymorphisms are due to random sequencing error). The test also puts a threshold on the "dominance"
-        # of the allele, meaning that it only reports a polymorphic base if the binomial test indicates significance AND the base is NOT sufficiently
-        # dominated by the dominant base. Defaults to 0.8 dominance (dominant / all).
-        from scipy import stats
+    def baseline_PSR(self, mincov=10, minqual=30, pvalue=0.01, error_rate=0.001, dominant_frq_thrsh=0.8, binom=None):
+        """
+            This function estimates the polymorphic site rate over the input contig assuming that there are no truely polymorphic sites
+            (Meaning that all observed polymorphisms are due to random sequencing error). The test also puts a threshold on the "dominance"
+            of the allele, meaning that it only reports a polymorphic base if the binomial test indicates significance AND the base is NOT sufficiently
+            dominated by the dominant base. Defaults to 0.8 dominance (dominant / all).
+        """
 
         polymorphic_empirical_loci = 0
 
         # Get coverage as well as values of contig
-        depthsList = self.get_all_base_values('base_cov', min_base_qualit=yminqual,min_read_depth=mincov)
+        depthsList = self.get_all_base_values('base_cov', min_base_qualit=minqual, min_read_depth=mincov)
 
         # Also get dominant allele frequency of contig
-        dominantFreq = self.get_all_base_values('ratio_max2all', min_base_quality=minqual,min_read_depth=mincov)
+        dominantFreq = self.get_all_base_values('ratio_max2all', min_base_quality=minqual, min_read_depth=mincov)
 
         # For each position, draw depth-times from bernoulli with success rate 1-error_rate.
         # Determine significance based on a binomial test, as you would in the regular test for polymorphism.
