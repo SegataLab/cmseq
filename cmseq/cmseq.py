@@ -6,12 +6,12 @@ import multiprocessing as mp
 import os
 import sys
 from collections import defaultdict
-from typing import List, Union
+from typing import Dict, List, Union
 
 import numpy as np
 import pysam
 from BCBio import GFF
-from Bio import Seq, SeqIO
+from Bio import Seq, SeqFeature, SeqRecord, SeqIO
 from scipy import stats
 
 __author__ = "Moreno Zolfo (moreno.zolfo@unitn.it), Nicolai Karcher (nicolai.karcher@unitn.it), Kun Huang (kun.huang@unitn.it)"
@@ -101,18 +101,30 @@ class BamFile:
     def get_contig_by_label(self, contigID):
         return (self.contigs[contigID] if contigID in self.contigs else None)
 
-    def parse_gff(self, inputGFF):
+    def parse_gff(self, inputGFF, inputGenome: str = ""):
         """
         get a list of contigs plus 0-indexed gene-coordinates and sense-ness of protein coding regions from a gff file.
         Only tested with prokka GFF files.
         """
+        genome: Dict[str, Seq.Seq] = {}
+        if inputGenome:
+            try:
+                genome = SeqIO.index(inputGenome, "fasta")
+            except Exception:
+                genome = SeqIO.to_dict(inputGenome, "fasta")
         with open(inputGFF) as in_handle:
+            rec: SeqRecord.SeqRecord = None
+            allGenesCount = 0
+            allGoodGenes = set()
+            allBadStartGene = set()
+            allBadEndGene = set()
             for rec in GFF.parse(in_handle):
                 if str(rec.id) not in self.contigs:
                     logger.warn(f"{rec.id} is not tracked by the BAMFile.")
                     continue
 
-                tmp = []
+                contigFeatures = []
+                r: SeqFeature.SeqFeature = None
                 for r in rec.features:
                     if "minced" in r.qualifiers["source"][0] or "Minced" in r.qualifiers["source"][0]:
                         # This catches CRISPR repeats.
@@ -132,18 +144,30 @@ class BamFile:
                         # the required information, though. Should probably be fixed when I can.
                         indices = (r.location.start.position, r.location.end.position)
                         sense = r.location.strand
-                        gene_seq: Seq.Seq = rec.seq[indices[0]:indices[1]]
-                        if sense == -1:
-                            gene_seq = gene_seq.reverse_complement()
 
-                        if not (str(gene_seq[0:3]) == "ATG" or str(gene_seq[0:3]) == "GTG" or str(gene_seq[0:3]) == "TTG"):
-                            logger.warn(f"{r.id} doesn't start with a common start codon. Beware. Continuing.")
+                        if genome:
+                            gene_seq: Seq.Seq = r.extract(genome[rec.id]).seq
+                            geneId = f"{rec.id}_{r.id.split('_')[1]}"
+                            contigLen = len(genome[rec.id])
 
-                        if not (str(gene_seq[-3:]) == "TAG" or str(gene_seq[-3:]) == "TAA" or str(gene_seq[-3:]) == "TGA"):
-                            logger.warn(f"{r.id} doesn't stop with a usual stop codon. Beware. Continuing.")
-                        tmp.append((indices, sense))
+                            if not (str(gene_seq[0:3]) == "ATG" or str(gene_seq[0:3]) == "GTG" or str(gene_seq[0:3]) == "TTG"):
+                                logger.info(f"{geneId} start abnormally at {indices[0] if sense == 1 else indices[1]} of {contigLen}")
+                                allBadStartGene.add(geneId)
+                            if not (str(gene_seq[-3:]) == "TAG" or str(gene_seq[-3:]) == "TAA" or str(gene_seq[-3:]) == "TGA"):
+                                logger.info(f"{geneId} stop abnormally at {indices[1] if sense == 1 else indices[0]} of {contigLen}")
+                                allBadEndGene.add(geneId)
 
-                self.contigs[str(rec.id)].annotations.append(tmp)
+                            if geneId not in allBadStartGene and geneId not in allBadEndGene:
+                                allGoodGenes.add(geneId)
+
+                        contigFeatures.append((indices, sense))
+                        allGenesCount += 1
+
+                self.contigs[str(rec.id)].annotations.append(contigFeatures)
+            logger.warn(f'record {allGenesCount} genes')
+            if genome:
+                logger.warn(f'Validation: {len(allGoodGenes)} complete genes, '
+                            f'{len(allBadStartGene)} genes without start codon, {len(allGoodGenes)} genes without end codon')
 
     def parallel_reference_free_consensus(self, ncores=4, **kwargs):
         terminating = mp.Event()
