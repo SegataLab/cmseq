@@ -90,7 +90,7 @@ class BamFile:
                         for reference_seq_name, length in zip(bamHandle.references, bamHandle.lengths)
                         if (length > minlen and
                             (not toList or reference_seq_name in toList) and
-                            bamHandle.count(contig=reference_seq_name, read_callback=stepper) >= minimumReadsAligning)}
+                            (not minimumReadsAligning or bamHandle.count(contig=reference_seq_name, read_callback=stepper) >= minimumReadsAligning))}
 
     def get_contigs(self):
         return iter(self.contigs.keys())
@@ -106,14 +106,6 @@ class BamFile:
         get a list of contigs plus 0-indexed gene-coordinates and sense-ness of protein coding regions from a gff file.
         Only tested with prokka GFF files.
         '''
-        def rev_comp(string):
-            string = string.upper()
-            complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N' : 'N'}
-            bases = list(string)
-            bases = [complement[base] for base in bases]
-            bases.reverse()
-            return ''.join(bases)
-
         with open(inputGFF) as in_handle:
             for rec in GFF.parse(in_handle):
                 if str(rec.id) not in self.contigs:
