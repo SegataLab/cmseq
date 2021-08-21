@@ -128,7 +128,7 @@ class BamFile:
                     logger.warn(f"{rec.id} is not tracked by the BAMFile.")
                     continue
 
-                contigFeatures = []
+                contigFeatures: Dict[str, Tuple[Tuple[int, int], int]] = {}
                 r: SeqFeature.SeqFeature = None
                 for r in rec.features:
                     if "minced" in r.qualifiers["source"][0] or "Minced" in r.qualifiers["source"][0]:
@@ -165,10 +165,10 @@ class BamFile:
                             if geneId not in allBadStartGene and geneId not in allBadEndGene:
                                 allGoodGenes.add(geneId)
 
-                        contigFeatures.append((indices, sense))
+                        contigFeatures[geneId] = (indices, sense)
                         allGenesCount += 1
 
-                self.contigs[str(rec.id)].annotations.append(contigFeatures)
+                self.contigs[str(rec.id)].annotations.update(contigFeatures)
             logger.warn(f'record {allGenesCount} genes')
             if genome:
                 logger.warn(f'Validation: {len(allGoodGenes)} complete genes, '
@@ -198,7 +198,7 @@ class BamContig:
     def __init__(self, bamHandle, contigName, contigLength, stepper="nofilter"):
         self.coverage = None
         self.consensus = ""
-        self.annotations = []  # TODO: add geneId information
+        self.annotations: Dict[str, Tuple[Tuple[int, int], int]] = {}
 
         self.bam_handle: pysam.AlignmentFile = bamHandle
         self.name = contigName
@@ -300,21 +300,15 @@ class BamContig:
         if not self.annotations:
             base_stats: List[Tuple[Tuple[int, int, int, int], int]] = [None] * self.length
             base_pileup: pysam.PileupColumn = None
-            for base_pileup in self.bam_handle.pileup(self.name, stepper=self.stepper):
+            start, end = 0, self.length
+            for base_pileup in self.bam_handle.pileup(self.name, start=start, end=end, stepper=self.stepper):
 
                 base_freq = {"A": 0, "C": 0, "G": 0, "T": 0, "N": 0}
-                matched_read: pysam.PileupRead = None
-                for matched_read in base_pileup.pileups:
+                for quality, base in zip(base_pileup.get_query_qualities(),
+                                         base_pileup.get_query_sequences(add_indels=True)):
+                    if quality >= minqual and base in ATCG:
+                        base_freq[base] += 1
 
-                    if not matched_read.is_del and not matched_read.is_refskip:
-                        b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
-                        q = matched_read.alignment.query_qualities[matched_read.query_position]
-                        #print self.name,matched_read.query_position, b,q
-
-                        if q >= minqual and b in ATCG:
-                            base_freq[b] += 1
-                        #else: print "Q",q,"B",b
-                #print "Filling",base_pileup.pos,"with", base_freq
                 if sum(base_freq.values()) > 0:
                     base_stats[base_pileup.pos] = ((base_freq["A"], base_freq["C"], base_freq["G"], base_freq["T"]), base_pileup.pos)
         else:
@@ -324,17 +318,17 @@ class BamContig:
             # I wrote a function that reverses a given gene position, which is used to effectively revert genes on the anti-sense strand.
             # Furthermore, for each read"s nucleotide over a given position I write out the complement
             genes_and_positions = dict()
-            for gene_idx in range(0, len(self.annotations[0])):
-                genes_and_positions[gene_idx] = self.annotations[0][gene_idx]
+            for geneId, feature in self.annotations.items():
+                genes_and_positions[geneId] = feature
 
-            for gene_idx in genes_and_positions:
-                gene_stats = [None] * (genes_and_positions[gene_idx][0][1] - genes_and_positions[gene_idx][0][0])
+            for geneId in genes_and_positions:
+                gene_stats = [None] * (genes_and_positions[geneId][0][1] - genes_and_positions[geneId][0][0])
                 pos_on_gene = 0
                 bam_pileup = self.bam_handle.pileup(self.name,
-                                                    int(genes_and_positions[gene_idx][0][0]),
-                                                    int(genes_and_positions[gene_idx][0][1]),
+                                                    int(genes_and_positions[geneId][0][0]),
+                                                    int(genes_and_positions[geneId][0][1]),
                                                     stepper=self.stepper, truncate=True)
-                if genes_and_positions[gene_idx][1] == "+":
+                if genes_and_positions[geneId][1] == 1:
                     # If the gene is on the sense-strand, do the same as before.
                     for base_pileup in bam_pileup:
                         base_freq = {"A": 0, "C": 0, "G": 0, "T": 0, "N": 0}
@@ -362,13 +356,13 @@ class BamContig:
                                     base_freq[rev_dict[b]] += 1
                         if sum(base_freq.values()) > 0:
                             out_pos = rev_pos(cur_pos=int(pos_on_gene), gene_start=0, gene_end=len(gene_stats))
-                            contig_pos = rev_pos(cur_pos=int(base_pileup.pos), gene_start=genes_and_positions[gene_idx][0][0], gene_end=genes_and_positions[gene_idx][0][1])
+                            contig_pos = rev_pos(cur_pos=int(base_pileup.pos), gene_start=genes_and_positions[geneId][0][0], gene_end=genes_and_positions[geneId][0][1])
                             gene_stats[out_pos] = ((base_freq["A"], base_freq["C"], base_freq["G"], base_freq["T"]), contig_pos)
                         pos_on_gene += 1
                     if len(gene_stats) % 3 != 0:
                         print("One of your genes' length is not a multiple of three. Check your gff file / gene calls.")
                         print("Contig name", self.name)
-                        print("Gene position", genes_and_positions[gene_idx])
+                        print("Gene position", genes_and_positions[geneId])
                         sys.exit()
                     base_stats.extend(gene_stats)
 
