@@ -11,7 +11,7 @@ from typing import Dict, List, Union
 import numpy as np
 import pysam
 from BCBio import GFF
-from Bio import Seq, SeqFeature, SeqRecord, SeqIO
+from Bio import Seq, SeqFeature, SeqIO, SeqRecord
 from scipy import stats
 
 __author__ = "Moreno Zolfo (moreno.zolfo@unitn.it), Nicolai Karcher (nicolai.karcher@unitn.it), Kun Huang (kun.huang@unitn.it)"
@@ -52,8 +52,13 @@ class BamFile:
          * @param {bamFile} name of bamfile
          * @param {sort}    If true, sort the bamFile
          * @param {index}   If true, index the bamFile
-                            of if false *,bam.bai exists, it will recognized automatically
-         * @param {stepper} ?
+                            or if false *,bam.bai exists, it will recognized automatically
+         * @param {stepper} param in pysam
+                            > The stepper controls how the iterator advances. Possible options for the stepper are
+                                - all: skip reads in which any of the following flags are set:
+                                        BAM_FUNMAP, BAM_FSECONDARY, BAM_FQCFAIL, BAM_FDUP
+                                - nofilter: uses every single read turning off any filtering.
+                                - samtools: same filter and read processing as in csamtools pileup.
          * @param {refGenomes} Filter of genome, it can in 3 different formats:
                                     1.  list of contigId
                                     2.  str of genome file of FASTA file
@@ -74,7 +79,7 @@ class BamFile:
             pysam.index(fp)
 
         self.bamFile = fp
-        self.bam_handle = pysam.AlignmentFile(fp, "rb")
+        self.bam_handle: pysam.AlignmentFile = pysam.AlignmentFile(fp, "rb")
 
         bamHandle = self.bam_handle
         toList = []
@@ -193,11 +198,12 @@ class BamContig:
     def __init__(self, bamHandle, contigName, contigLength, stepper="nofilter"):
         self.coverage = None
         self.consensus = ""
+        self.annotations = []  # TODO: add geneId information
+
+        self.bam_handle: pysam.AlignmentFile = bamHandle
         self.name = contigName
         self.length = contigLength
-        self.bam_handle = bamHandle
         self.stepper = stepper
-        self.annotations = []
 
     def set_stepper(self, ns):
         if ns in ["all", "nofilter"]:
@@ -405,8 +411,8 @@ class BamContig:
 
             if len(codon_f1) == 3 and len(codon_f2) == 3:
 
-                codon_s1 = Seq("".join(codon_f1))
-                codon_s2 = Seq("".join(codon_f2))
+                codon_s1 = Seq.Seq("".join(codon_f1))
+                codon_s2 = Seq.Seq("".join(codon_f2))
                 codon_t1 = codon_s1.translate()
                 codon_t2 = codon_s2.translate()
 
