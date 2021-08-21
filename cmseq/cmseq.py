@@ -6,7 +6,7 @@ import multiprocessing as mp
 import os
 import sys
 from collections import defaultdict
-from typing import Dict, List, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import pysam
@@ -298,10 +298,12 @@ class BamContig:
             return gene_start - 1 - cur_pos + gene_end
 
         if not self.annotations:
-            base_stats = [None] * self.length
+            base_stats: List[Tuple[Tuple[int, int, int, int], int]] = [None] * self.length
+            base_pileup: pysam.PileupColumn = None
             for base_pileup in self.bam_handle.pileup(self.name, stepper=self.stepper):
 
                 base_freq = {"A": 0, "C": 0, "G": 0, "T": 0, "N": 0}
+                matched_read: pysam.PileupRead = None
                 for matched_read in base_pileup.pileups:
 
                     if not matched_read.is_del and not matched_read.is_refskip:
@@ -312,9 +314,9 @@ class BamContig:
                         if q >= minqual and b in ATCG:
                             base_freq[b] += 1
                         #else: print "Q",q,"B",b
-                    #print "Filling",base_pileup.pos,"with", base_freq
-                    if sum(base_freq.values()) > 0:
-                        base_stats[base_pileup.pos] = ((base_freq["A"], base_freq["C"], base_freq["G"], base_freq["T"]), base_pileup.pos)
+                #print "Filling",base_pileup.pos,"with", base_freq
+                if sum(base_freq.values()) > 0:
+                    base_stats[base_pileup.pos] = ((base_freq["A"], base_freq["C"], base_freq["G"], base_freq["T"]), base_pileup.pos)
         else:
             base_stats = []
             # Generate pileups gene-wise
