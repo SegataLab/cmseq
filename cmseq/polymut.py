@@ -26,7 +26,7 @@ def polymut_from_file():
 	si = True if args.sortindex else False
 	mode = 'all' if args.f else 'nofilter'
 
-	bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filterInputList=args.contig)
+	bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filtRefGenomes=args.contig)
 
 	if (args.gff_file):
 		bf.parse_gff(args.gff_file)

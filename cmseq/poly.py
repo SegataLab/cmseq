@@ -24,20 +24,20 @@ def poly_from_file():
 
 	si = True if args.sortindex else False
 	mode = 'all' if args.f else 'nofilter'
-	
-	bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filterInputList=args.contig)
+
+	bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filtRefGenomes=args.contig)
 
 	outputDF = []
-	allRatios = [] 
+	allRatios = []
 	allGenomeCol = {'referenceID': '-GENOME-','total_covered_bases':0,'total_polymorphic_bases':0,'total_polymorphic_rate':np.nan}
 
 	for element in bf.get_contigs_obj():
-		
+
 		tld = element.polymorphism_rate(minqual=args.minqual,mincov=args.mincov,error_rate=args.seq_err,dominant_frq_thrsh=args.dominant_frq_thrsh)
 		tld['referenceID'] = element.name
-	
+
 		allGenomeCol['total_covered_bases'] += tld['total_covered_bases']
-		allGenomeCol['total_polymorphic_bases'] += tld['total_polymorphic_bases'] 
+		allGenomeCol['total_polymorphic_bases'] += tld['total_polymorphic_bases']
 		if 'ratios' in tld:
 			allRatios = allRatios + tld['ratios']
 			del tld['ratios']
@@ -51,7 +51,7 @@ def poly_from_file():
 		allGenomeCol['total_polymorphic_rate'] = float(allGenomeCol['total_polymorphic_bases']) / float(allGenomeCol['total_covered_bases'])
 		allGenomeCol['dominant_allele_distr_mean'] = np.mean(allRatios)
 		allGenomeCol['dominant_allele_distr_sd'] = np.std(allRatios)
-		
+
 		for i in [10,20,30,40,50,60,70,80,90,95,98,99]:
 			allGenomeCol['dominant_allele_distr_perc_'+str(i)] = np.percentile(allRatios,i)
 

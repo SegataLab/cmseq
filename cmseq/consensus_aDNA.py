@@ -29,7 +29,7 @@ class CMSEQ_DEFAULTS_Ancient(CMSEQ_DEFAULTS):
 
 class BamFileAncient(BamFile):
 
-	def __init__(self,bamFile,sort=False,index=False,stepper='nofilter',minlen=CMSEQ_DEFAULTS.minlen,filterInputList=None,minimumReadsAligning=None):
+	def __init__(self,bamFile,sort=False,index=False,stepper='nofilter',minlen=CMSEQ_DEFAULTS.minlen,filtRefGenomes=None,minimumReadsAligning=None):
 		if not os.path.isfile(bamFile):
 			raise Exception(bamFile+' is not accessible, or is not a file')
 
@@ -42,41 +42,41 @@ class BamFileAncient(BamFile):
 		if index: pysam.index(fp)
 
 		self.bamFile = fp
-		
+
 		bamHandle = pysam.AlignmentFile(fp, "rb")
-		
+
 		self.bam_handle = bamHandle
-		
-		if filterInputList is not None:
-			
+
+		if filtRefGenomes is not None:
+
 			toList=[]
-			if isinstance(filterInputList, list):
-				toList = filterInputList
-			
-			elif os.path.isfile(filterInputList):
+			if isinstance(filtRefGenomes, list):
+				toList = filtRefGenomes
+
+			elif os.path.isfile(filtRefGenomes):
 				from Bio import SeqIO
-				
-				with open(filterInputList, "r") as infile:
+
+				with open(filtRefGenomes, "r") as infile:
 
 					for record in SeqIO.parse(infile, "fasta"):
-						
+
 						toList.append(record.id)
 			else:
-				toList = [element for element in filterInputList.split(',')]
+				toList = [element for element in filtRefGenomes.split(',')]
 
 			if minimumReadsAligning:
 				self.contigs = dict((r,BamContigAncient(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and r in toList and bamHandle.count(contig=r,read_callback=stepper) >= minimumReadsAligning))
 			else:
 				self.contigs = dict((r,BamContigAncient(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and r in toList))
-			
+
 		else:
 			if minimumReadsAligning:
 				self.contigs = dict((r,BamContigAncient(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen and bamHandle.count(contig=r,read_callback=stepper) >= minimumReadsAligning))
-			else: 
+			else:
 				self.contigs = dict((r,BamContigAncient(self.bam_handle,r,l,stepper)) for r,l in zip(bamHandle.references,bamHandle.lengths) if (l > minlen))
 
 	def get_contigs_obj(self): return iter(self.contigs.values())
-			
+
 
 class BamContigAncient(BamContig):
 	## Get base stats code goes here
@@ -92,7 +92,7 @@ class BamContigAncient(BamContig):
 			dominant_frq_thrsh=dominant_frq_thrsh,BAM_tagFilter=BAM_tagFilter,trimReads=trimReads,
 			post_damage_prob=post_damage_prob,pos_prob_db=pos_prob_db, refseq_idx=refseq_idx).items():
 			ref_base_idx = self.name + '__' + str(pileupcolumn)
-			
+
 
 			if float(position_data['ratio_max2all']) >= float(dominant_frq_thrsh):
 				consensus_positions[pileupcolumn] = consensus_rule(dict((k,v) for k,v in position_data['base_freq'].items() if k != 'N'))
@@ -109,7 +109,7 @@ class BamContigAncient(BamContig):
 	 error_rate=CMSEQ_DEFAULTS.poly_error_rate,dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh,
 	 BAM_tagFilter=None,trimReads=None,post_damage_prob=CMSEQ_DEFAULTS_Ancient.position_specific_prob_thrsh,
 	 pos_prob_db=CMSEQ_DEFAULTS_Ancient.position_specific_prob,refseq_idx=None):
-		
+
 		'''
 		get base frequencies and quality stats,
 		to use in get_all_base_values() and other functions
@@ -120,14 +120,14 @@ class BamContigAncient(BamContig):
 		import pickle,os
 
 
-		base_stats = defaultdict(dict) 
+		base_stats = defaultdict(dict)
 
 		ATCG=('A','T','C','G')
 
 		#for each position (column)
 		for base_pileup in self.bam_handle.pileup(self.name,stepper=self.stepper):
 			base_freq = {'A':0,'T':0,'C':0,'G':0,'N':0}
-			
+
 
 			pos=base_pileup.pos+1 # 1-based
 
@@ -138,14 +138,14 @@ class BamContigAncient(BamContig):
 
 
 					b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
-					q = matched_read.alignment.query_qualities[matched_read.query_position]	
+					q = matched_read.alignment.query_qualities[matched_read.query_position]
 
 					thisPositionBase = 'N'
-					
+
 					if post_damage_prob and pos_prob_db and refseq_idx: # Enter position-specific mode
 						ref_base_key = self.name + '__' + str(pos)
-						ref_base = refseq_idx[ref_base_key]	
-						if matched_read.query_position <= 11: # Check position if on the left end 
+						ref_base = refseq_idx[ref_base_key]
+						if matched_read.query_position <= 11: # Check position if on the left end
 							left_pos = matched_read.query_position + 1 # 1-based
 							sub = ref_base+b
 							if sub == 'CT' or sub == 'GA': # Check if the RefSeq-Read base if CT or GA
@@ -164,7 +164,7 @@ class BamContigAncient(BamContig):
 										thisPositionBase = b
 
 						elif (matched_read.alignment.query_length - matched_read.query_position) <= 11: # check position if on the right end
-							right_pos = matched_read.query_position - matched_read.alignment.query_length 
+							right_pos = matched_read.query_position - matched_read.alignment.query_length
 							sub = ref_base+b
 							if sub == 'CT' or sub == 'GA':
 								prob = pos_prob_db[right_pos][sub]
@@ -189,8 +189,8 @@ class BamContigAncient(BamContig):
 									thisPositionBase = b
 						base_freq[thisPositionBase] += 1
 
-			# calculate quality stats, ignoring N's 
-			base_sum=sum([base_freq[b] for b in ATCG]) 
+			# calculate quality stats, ignoring N's
+			base_sum=sum([base_freq[b] for b in ATCG])
 			base_max=float(max([base_freq[b] for b in ATCG]))
 
 			if base_sum >= min_read_depth:
@@ -202,12 +202,12 @@ class BamContigAncient(BamContig):
 				else:
 					p = 1.0
 
-				
+
 				base_stats[pos]['p']=p                 # quality measure
 				base_stats[pos]['ratio_max2all']=r     # dominant base versus others
 				base_stats[pos]['base_cov'] =base_sum  # number of reads covering the base, not counting N's
 				base_stats[pos]['base_freq']=base_freq # dict: {'A':4,'T':1,'C':2,'G':0,'N':0}
-			
+
 		return base_stats
 
 def consensus_from_file():
@@ -230,11 +230,11 @@ def consensus_from_file():
 	si = True if args.sortindex else False
 	mode = 'all' if args.f else 'nofilter'
 
-	bf = BamFileAncient(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filterInputList=args.contig)
+	bf = BamFileAncient(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filtRefGenomes=args.contig)
 	#tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
- 
+
 	lst = []
-	if args.pos_specific_prob_tab and args.pos_damage_prob_thrsh and args.refseq: 
+	if args.pos_specific_prob_tab and args.pos_damage_prob_thrsh and args.refseq:
 		pos_specific_prob_db = [i.rstrip().split(',') for i in open(args.pos_specific_prob_tab).readlines()][1:]
 		stats_db = {}
 		for i in pos_specific_prob_db:
@@ -259,11 +259,11 @@ def consensus_from_file():
 
 	for i in bf.get_contigs_obj():
 
-		
+
 		sq = i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual,
 			dominant_frq_thrsh=args.dominant_frq_thrsh,noneCharacter='N',
 			trimReads=None,post_damage_prob=pos_prob_thrsh,pos_prob_db=pos_stats_db, refseq_idx=RefSeq_idx)
-		
+
 		if sq is not None:
 			lst.append(SeqRecord(Seq(sq), id=i.name+"_consensus", description=''))
 	SeqIO.write(lst,sys.stdout,'fasta')
