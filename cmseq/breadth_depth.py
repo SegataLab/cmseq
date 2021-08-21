@@ -27,7 +27,7 @@ def bd_from_file():
 	si = True if args.sortindex else False
 	mode = 'all' if args.f else 'nofilter'
 
-	bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filterInputList=args.contig,minimumReadsAligning=args.mincov)
+	bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filtRefGenomes=args.contig,minimumReadsAligning=args.mincov)
 
 	print('Contig\tBreadth\tDepth avg\tDepth median')
 
@@ -37,7 +37,7 @@ def bd_from_file():
 
 		if not all(np.isnan(x) for x in [bd_result[0],bd_result[1],bd_result[2]]):
 			print (i.name+'\t'+str(bd_result[0])+'\t'+str(bd_result[1])+'\t'+str(bd_result[2]))
-			
+
 			if args.combine:
 				all_coverage_values.extend(bd_result[3])
 

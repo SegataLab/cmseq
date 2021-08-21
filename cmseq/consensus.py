@@ -20,23 +20,23 @@ def consensus_from_file():
 	parser.add_argument('--dominant_frq_thrsh', help='Cutoff for degree of `allele dominance` for a position to be considered polymorphic. Default: '+str(CMSEQ_DEFAULTS.poly_dominant_frq_thrsh), type=float, default=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh)
 	parser.add_argument('--minlen', help='Minimum Reference Length for a reference to be considered. Default: '+str(CMSEQ_DEFAULTS.minlen),default=CMSEQ_DEFAULTS.minlen, type=int)
 	parser.add_argument('--trim', help='Trim the reads before computing the consensus. A value of 10:10 means that the first and last 10 positions of each read will be ignored. Default: '+str(CMSEQ_DEFAULTS.trimReads),default=CMSEQ_DEFAULTS.trimReads, type=str)
-	
+
 	args = parser.parse_args()
 	si = True if args.sortindex else False
 	mode = 'all' if args.f else 'nofilter'
 
-	bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filterInputList=args.contig)
+	bf = BamFile(args.BAMFILE,sort=si,index=si,stepper=mode,minlen=args.minlen,filtRefGenomes=args.contig)
 	#tl = [bf.get_contig_by_label(contig) for contig in args.contig.split(',')] if args.contig is not None else list(bf.get_contigs_obj())
- 
+
 	lst = []
 
 	for i in bf.get_contigs_obj():
 
-		
+
 		trimParam = tuple(args.trim.strip().split(':')) if args.trim else args.trim
 
 		sq = i.reference_free_consensus(mincov=args.mincov,minqual=args.minqual,dominant_frq_thrsh=args.dominant_frq_thrsh,noneCharacter='N',trimReads=trimParam)
-		
+
 		if sq is not None:
 			lst.append(SeqRecord(Seq(sq), id=i.name+"_consensus", description=''))
 	SeqIO.write(lst,sys.stdout,'fasta')

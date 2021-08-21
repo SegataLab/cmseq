@@ -46,7 +46,7 @@ class BamFile:
 
     def __init__(self, bamFile,
                  sort=False, index=False, stepper='nofilter', minlen=CMSEQ_DEFAULTS.minlen,
-                 filterInputList: Union[str, List[str]] = None, minimumReadsAligning=0):
+                 filtRefGenomes: Union[str, List[str]] = None, minimumReadsAligning=0):
         """
          * @description:
          * @param {bamFile} name of bamfile
@@ -54,7 +54,7 @@ class BamFile:
          * @param {index}   If true, index the bamFile
                             of if false *,bam.bai exists, it will recognized automatically
          * @param {stepper} ?
-         * @param {filterInputList} Filter of genome, it can in 3 different formats:
+         * @param {refGenomes} Filter of genome, it can in 3 different formats:
                                     1.  list of contigId
                                     2.  str of genome file of FASTA file
                                     3.  string of contigIds seperated by commas (',')
@@ -78,13 +78,13 @@ class BamFile:
 
         bamHandle = self.bam_handle
         toList = []
-        if filterInputList is not None:
-            if isinstance(filterInputList, list):
-                toList = filterInputList
-            elif os.path.isfile(filterInputList):
-                toList = [record.id for record in SeqIO.parse(filterInputList, "fasta")]
+        if filtRefGenomes is not None:
+            if isinstance(filtRefGenomes, list):
+                toList = filtRefGenomes
+            elif os.path.isfile(filtRefGenomes):
+                toList = [record.id for record in SeqIO.parse(filtRefGenomes, "fasta")]
             else:
-                toList = [element for element in filterInputList.split(',')]
+                toList = [element for element in filtRefGenomes.split(',')]
 
         self.contigs = {reference_seq_name: BamContig(self.bam_handle, reference_seq_name, length, stepper)
                         for reference_seq_name, length in zip(bamHandle.references, bamHandle.lengths)
@@ -156,7 +156,7 @@ class BamFile:
     def _parallel_consensus_worker(contigName):
         if not terminating.is_set():
             try:
-                t = BamFile(consensus_bamFile, filterInputList=contigName)
+                t = BamFile(consensus_bamFile, filtRefGenomes=contigName)
                 return (contigName, t.get_contig_by_label(contigName).reference_free_consensus(**consensus_args))
             except Exception:
                 terminating.set()
