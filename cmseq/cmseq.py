@@ -15,8 +15,8 @@ from Bio import Seq, SeqFeature, SeqIO, SeqRecord
 from scipy import stats
 
 __author__ = "Moreno Zolfo (moreno.zolfo@unitn.it), Nicolai Karcher (nicolai.karcher@unitn.it), Kun Huang (kun.huang@unitn.it)"
-__version__ = "1.0.3"
-__date__ = "23 September 2020"
+__version__ = "1.0.4"
+__date__ = "21 August 2021"
 logger = logging.getLogger(__name__)
 
 
@@ -203,7 +203,7 @@ class BamContig:
         self.bam_handle: pysam.AlignmentFile = bamHandle
         self.name = contigName
         self.length = contigLength
-        self.stepper = stepper
+        self.stepper = self.set_stepper(stepper)
 
     def set_stepper(self, ns):
         if ns in ["all", "nofilter"]:
@@ -357,30 +357,30 @@ class BamContig:
 
     def easy_polymorphism_rate(self, mincov=CMSEQ_DEFAULTS.mincov, minqual=CMSEQ_DEFAULTS.minqual,
                                dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh):
-        base_stats = self.get_base_stats_for_poly(minqual=minqual)
-
         #list N-long where N is the number of covered bases (N <= L(contig))
         dominanceList = []
+        # DN: non-synonymous mutations
+        # DS: synonymous mutations
+        # D?: unknown aa
         mutationStats = {"DN": 0, "DS": 0, "D?": 0}
 
         codon_f1 = []
         codon_f2 = []
 
-        for positionData in base_stats:
+        for positionData in self.get_base_stats_for_poly(minqual=minqual):
             # positionData= ((A,C,G,T),position) if covered, None if not.
             bases = ["N"]
 
             if positionData:
                 nuclAbundance, position = positionData
-                base_sum = sum(nuclAbundance)
-                base_max = float(max(nuclAbundance))
-                dominance = float(base_max) / float(base_sum)
+                base_depth = sum(nuclAbundance)
+                dominance = float(max(nuclAbundance)) / float(base_depth)
 
-                if base_sum > mincov:
-
+                if base_depth > mincov:
                     dominanceList.append(dominance)
-                    tmpDict = dict((k, v) for k, v in zip(["A", "C", "G", "T"], nuclAbundance))
-                    bases = [k for k, v in sorted(tmpDict.items(), key=lambda x: x[1], reverse=True) if v > 0]
+                    # TODO: should threshold be >20%
+                    bases = [k for k, v in sorted(zip(["A", "C", "G", "T"], nuclAbundance),
+                                                  key=lambda x: x[1], reverse=True) if v > 0]
                 else:
                     dominanceList.append(np.nan)
             else:
@@ -392,6 +392,7 @@ class BamContig:
             codon_f1.append(first_base)
             codon_f2.append(second_base)
 
+            # BUG: what if some bases are lost?
             if len(codon_f1) == 3 and len(codon_f2) == 3:
 
                 codon_s1 = Seq.Seq("".join(codon_f1))
@@ -401,12 +402,12 @@ class BamContig:
 
                 #positionLabel = positionData[1] if positionData else "ND"
                 RD = None
-                if codon_t1 == "X" or codon_t2 == "X":
-                    RD = "D?"
-                elif codon_t1 != codon_t2:
+                if codon_t1 != codon_t2:
                     RD = "DN"
-                elif (codon_t1 == codon_t2) and (codon_s1 != codon_s2):
+                elif codon_t1 == codon_t2 and (codon_s1 != codon_s2):
                     RD = "DS"
+                else:  #if codon_t1 == "X" or codon_t2 == "X":
+                    RD = "D?"
                 mutationStats[RD] += 1
 
                 codon_f1 = []
