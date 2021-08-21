@@ -297,13 +297,14 @@ class BamContig:
             """
             return gene_start - 1 - cur_pos + gene_end
 
+        base_freq = {"A": 0, "C": 0, "G": 0, "T": 0, "N": 0}
+        base_stats: List[Tuple[Tuple[int, int, int, int], int]] = []
         if not self.annotations:
-            base_stats: List[Tuple[Tuple[int, int, int, int], int]] = [None] * self.length
-            base_pileup: pysam.PileupColumn = None
+            base_stats = [None] * self.length
             start, end = 0, self.length
-            for base_pileup in self.bam_handle.pileup(self.name, start=start, end=end, stepper=self.stepper):
 
-                base_freq = {"A": 0, "C": 0, "G": 0, "T": 0, "N": 0}
+            base_pileup: pysam.PileupColumn = None
+            for base_pileup in self.bam_handle.pileup(self.name, start=start, end=end, stepper=self.stepper):
                 for quality, base in zip(base_pileup.get_query_qualities(),
                                          base_pileup.get_query_sequences(add_indels=True)):
                     if quality >= minqual and base in ATCG:
@@ -312,59 +313,45 @@ class BamContig:
                 if sum(base_freq.values()) > 0:
                     base_stats[base_pileup.pos] = ((base_freq["A"], base_freq["C"], base_freq["G"], base_freq["T"]), base_pileup.pos)
         else:
-            base_stats = []
             # Generate pileups gene-wise
             # I use the "truncate" parameter to only obtain the parsed start and stop positions. Without truncate, all positions with reads covering the parsed positions are returned.
             # I wrote a function that reverses a given gene position, which is used to effectively revert genes on the anti-sense strand.
             # Furthermore, for each read"s nucleotide over a given position I write out the complement
-            genes_and_positions = dict()
-            for geneId, feature in self.annotations.items():
-                genes_and_positions[geneId] = feature
-
-            for geneId in genes_and_positions:
-                gene_stats = [None] * (genes_and_positions[geneId][0][1] - genes_and_positions[geneId][0][0])
+            for (start, end), strand in self.annotations.values():
+                gene_stats = [None] * (end - start)
                 pos_on_gene = 0
-                bam_pileup = self.bam_handle.pileup(self.name,
-                                                    int(genes_and_positions[geneId][0][0]),
-                                                    int(genes_and_positions[geneId][0][1]),
-                                                    stepper=self.stepper, truncate=True)
-                if genes_and_positions[geneId][1] == 1:
+                bam_pileup = self.bam_handle.pileup(self.name, start=start, end=end, stepper=self.stepper, truncate=True)
+                if strand == 1:
                     # If the gene is on the sense-strand, do the same as before.
                     for base_pileup in bam_pileup:
-                        base_freq = {"A": 0, "C": 0, "G": 0, "T": 0, "N": 0}
-                        for matched_read in base_pileup.pileups:
-                            if not matched_read.is_del and not matched_read.is_refskip:
-                                b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
-                                q = matched_read.alignment.query_qualities[matched_read.query_position]
-                                if q >= minqual and b in ATCG:
-                                    base_freq[b] += 1
+                        for quality, base in zip(base_pileup.get_query_qualities(),
+                                                 base_pileup.get_query_sequences(add_indels=True)):
+                            if quality >= minqual and base in ATCG:
+                                base_freq[base] += 1
                         if sum(base_freq.values()) > 0:
                             gene_stats[pos_on_gene] = ((base_freq["A"], base_freq["C"], base_freq["G"], base_freq["T"]), base_pileup.pos)
                         pos_on_gene += 1
-                    base_stats.extend(gene_stats)
                 else:
-                    # If the gene is on the anti-sense strand, effectively return the reverse complement by mapping positions on a gene to it"s mirrored position (using rev_pos)
+                    # If the gene is on the anti-sense strand, effectively return the reverse complement
+                    # by mapping positions on a gene to it"s mirrored position (using rev_pos)
                     # and then also converting each nucleotide to it"s complement.
                     for base_pileup in bam_pileup:
-                        base_freq = {"A": 0, "C": 0, "G": 0, "T": 0, "N": 0}
-                        for matched_read in base_pileup.pileups:
-                            if not matched_read.is_del and not matched_read.is_refskip:
-                                b = matched_read.alignment.query_sequence[matched_read.query_position].upper()
-                                q = matched_read.alignment.query_qualities[matched_read.query_position]
-                                # We have to increment the COMPLEMENT of each base when gene calls are on the reverse strand.
-                                if q >= minqual and b in ATCG:
-                                    base_freq[rev_dict[b]] += 1
+                        for quality, base in zip(base_pileup.get_query_qualities(),
+                                                 base_pileup.get_query_sequences(add_indels=True)):
+                            if quality >= minqual and base in ATCG:
+                                base_freq[base] += 1
                         if sum(base_freq.values()) > 0:
                             out_pos = rev_pos(cur_pos=int(pos_on_gene), gene_start=0, gene_end=len(gene_stats))
-                            contig_pos = rev_pos(cur_pos=int(base_pileup.pos), gene_start=genes_and_positions[geneId][0][0], gene_end=genes_and_positions[geneId][0][1])
+                            contig_pos = rev_pos(cur_pos=int(base_pileup.pos), gene_start=start, gene_end=end)
                             gene_stats[out_pos] = ((base_freq["A"], base_freq["C"], base_freq["G"], base_freq["T"]), contig_pos)
                         pos_on_gene += 1
-                    if len(gene_stats) % 3 != 0:
-                        print("One of your genes' length is not a multiple of three. Check your gff file / gene calls.")
-                        print("Contig name", self.name)
-                        print("Gene position", genes_and_positions[geneId])
-                        sys.exit()
-                    base_stats.extend(gene_stats)
+
+                if len(gene_stats) % 3 != 0:
+                    print("One of your genes' length is not a multiple of three. Check your gff file / gene calls.")
+                    print("Contig name", self.name)
+                    print("Gene position", (start, end), strand)
+                    sys.exit()
+                base_stats.extend(gene_stats)
 
         return base_stats
 
