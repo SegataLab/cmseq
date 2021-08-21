@@ -282,9 +282,9 @@ class BamContig:
         PSR = float(polymorphic_empirical_loci) / float(len(depthsList))
         return PSR
 
-    def get_base_stats_for_poly(self, minqual=CMSEQ_DEFAULTS.minqual):
+    def get_base_stats_for_poly(self, minqual=CMSEQ_DEFAULTS.minqual
+                                ) -> List[Tuple[Tuple[int, int, int, int], int]] :
         ATCG = ("A", "C", "G", "T")
-        rev_dict = {"A": "T", "T": "A", "G": "C", "C": "G"}
 
         def rev_pos(cur_pos, gene_start, gene_end):
             """
@@ -357,7 +357,7 @@ class BamContig:
 
     def easy_polymorphism_rate(self, mincov=CMSEQ_DEFAULTS.mincov, minqual=CMSEQ_DEFAULTS.minqual,
                                dominant_frq_thrsh=CMSEQ_DEFAULTS.poly_dominant_frq_thrsh):
-        bases = self.get_base_stats_for_poly(minqual=minqual)
+        base_stats = self.get_base_stats_for_poly(minqual=minqual)
 
         #list N-long where N is the number of covered bases (N <= L(contig))
         dominanceList = []
@@ -366,7 +366,7 @@ class BamContig:
         codon_f1 = []
         codon_f2 = []
 
-        for positionData in bases:
+        for positionData in base_stats:
             # positionData= ((A,C,G,T),position) if covered, None if not.
             bases = ["N"]
 
