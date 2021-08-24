@@ -172,7 +172,7 @@ class BamFile:
 
 		if not terminating.is_set():
 			try:
-				t=BamFile(consensus_bamFile,filterInputList=contigName)
+				t=BamFile(consensus_bamFile,filterInputList=[contigName])
 				return (contigName,t.get_contig_by_label(contigName).reference_free_consensus(**consensus_args))
 			except Exception as e:
 				terminating.set()
