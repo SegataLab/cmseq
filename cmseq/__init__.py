@@ -1,3 +1,5 @@
-from .cmseq import CMSEQ_DEFAULTS
-from .cmseq import BamFile
-from .cmseq import BamContig
+from cmseq.cmseq import CMSEQ_DEFAULTS
+from cmseq.cmseq import BamFile
+from cmseq.cmseq import BamContig
+
+__version__ = '1.0.4'

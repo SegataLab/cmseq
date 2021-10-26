@@ -1,7 +1,8 @@
 from __future__ import print_function
 
-from .cmseq import CMSEQ_DEFAULTS
-from .cmseq import BamFile
+from cmseq.cmseq import CMSEQ_DEFAULTS
+from cmseq.cmseq import BamFile
+from cmseq import __version__
 
 import pandas as pd
 import numpy as np
@@ -11,6 +12,7 @@ import argparse
 
 def bd_from_file():
 	parser = argparse.ArgumentParser(description="calculate the Breadth and Depth of coverage of BAMFILE.")
+	parser.add_argument('--version', action='version', version=f"CMSeq {__version__}")
 
 	parser.add_argument('BAMFILE', help='The file on which to operate')
 	parser.add_argument('-c','--contig', help='Focus on a subset of references in the BAM file. Can be a list of references separated by commas or a FASTA file (the IDs are used to subset)', metavar="REFERENCE ID" ,default=None)

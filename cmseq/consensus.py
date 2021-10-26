@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import argparse
 import sys
+from cmseq import __version__
+
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -11,6 +13,8 @@ from .cmseq import BamFile
 
 def consensus_from_file():
 	parser = argparse.ArgumentParser(description="outputs the consensus in FASTA format. Non covered positions (or quality-trimmed positions) are reported as a dashes: -")
+	parser.add_argument('--version', action='version', version=f"CMSeq {__version__}")
+
 	parser.add_argument('BAMFILE', help='The file on which to operate')
 	parser.add_argument('-c','--contig', help='Focus on a subset of references in the BAM file. Can be a list of references separated by commas or a FASTA file (the IDs are used to subset)', metavar="REFERENCE ID" ,default=None)
 	parser.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')

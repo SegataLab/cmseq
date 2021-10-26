@@ -1,12 +1,27 @@
 import setuptools
+import codecs
 from setuptools.command.install import install
 from io import open
 import os
 
+def read(rel_path):
+    here = os.path.abspath(os.path.dirname(__file__))
+    with codecs.open(os.path.join(here, rel_path), "r") as fp:
+        return fp.read()
+
+
+def get_version(rel_path):
+    for line in read(rel_path).splitlines():
+        if line.startswith("__version__"):
+            delim = '"' if '"' in line else "'"
+            return line.split(delim)[1]
+    else:
+        raise RuntimeError("Unable to find version string.")
+
 install_requires = ["numpy", "scipy", "pysam", "pandas", "biopython", "bcbio-gff"]
 setuptools.setup(
     name='CMSeq',
-    version='1.0.4',
+    version=get_version("cmseq/__init__.py"),
     author='Moreno Zolfo',
     author_email='moreno.zolfo@unitn.it',
     url='http://github.com/SegataLab/cmseq/',
