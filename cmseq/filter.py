@@ -2,8 +2,10 @@
 import pysam,sys
 import argparse
 import numpy as np
+from cmseq import __version__
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--version', action='version', version=f"CMSeq {__version__}")
 
 parser.add_argument('--minlen', help='Minimum length of alignment for a read to pass', type=int, default=70)
 parser.add_argument('--minqual', help='Minimum average quality for a read to pass. It is computed over the fastq Phred-scores of each read', type=int, default=30)

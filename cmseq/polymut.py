@@ -2,12 +2,15 @@ import pandas as pd
 import numpy as np
 import argparse
 import sys
+from cmseq import __version__
 
 from .cmseq import CMSEQ_DEFAULTS
 from .cmseq import BamFile
 
 def polymut_from_file():
 	parser = argparse.ArgumentParser(description="Reports the polymorpgic rate of each reference (polymorphic bases / total bases). Focuses only on covered regions (i.e. depth >= 1)")
+	parser.add_argument('--version', action='version', version=f"CMSeq {__version__}")
+
 	parser.add_argument('BAMFILE', help='The file on which to operate')
 	parser.add_argument('-c','--contig', help='Focus on a subset of references in the BAM file. Can be a list of references separated by commas or a FASTA file (the IDs are used to subset)', metavar="REFERENCE ID" ,default=None)
 	parser.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')

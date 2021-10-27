@@ -1,6 +1,8 @@
 from .cmseq import CMSEQ_DEFAULTS
 from .cmseq import BamFile
 from .cmseq import BamContig
+from cmseq import __version__
+
 import os
 import pysam
 import math
@@ -19,7 +21,6 @@ from Bio.SeqRecord import SeqRecord
 
 
 __author__ = 'Kun D. Huang (kun.huang@unitn.it), Moreno Zolfo (moreno.zolfo@unitn.it)'
-__version__ = '1.0.3'
 __date__ = '09 September 2020'
 
 class CMSEQ_DEFAULTS_Ancient(CMSEQ_DEFAULTS):
@@ -213,6 +214,8 @@ class BamContigAncient(BamContig):
 def consensus_from_file():
 
 	parser = argparse.ArgumentParser(description="outputs the consensus in FASTA format. Non covered positions (or quality-trimmed positions) are reported as a dashes: -")
+	parser.add_argument('--version', action='version', version=f"CMSeq {__version__}")
+
 	parser.add_argument('BAMFILE', help='The file on which to operate')
 	parser.add_argument('-c','--contig', help='Focus on a subset of references in the BAM file. Can be a list of references separated by commas or a FASTA file (the IDs are used to subset)', metavar="REFERENCE ID" ,default=None)
 	parser.add_argument('-f', help='If set unmapped (FUNMAP), secondary (FSECONDARY), qc-fail (FQCFAIL) and duplicate (FDUP) are excluded. If unset ALL reads are considered (bedtools genomecov style). Default: unset',action='store_true')
